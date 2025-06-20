@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "799095141701",
+    "project_id": "mafioso-69a40",
+    "storage_bucket": "mafioso-69a40.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:799095141701:android:9e8fb621edec02ebccfa2c",
+        "android_client_info": {
+          "package_name": "com.elm.mafioso"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsy4FPjC4CDwzVefqCU8pbIzIFEK_m9ng"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
