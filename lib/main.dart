@@ -23,8 +23,8 @@ class MafiosoApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => AuthCubit()),
-        BlocProvider(create: (_) => GameCubit()),
         BlocProvider(create: (_) => SettingsCubit()),
+        BlocProvider(create: (context) => GameCubit(settingsCubit: context.read<SettingsCubit>())),
       ],
       child: MaterialApp(
         title: 'مافيوسو',

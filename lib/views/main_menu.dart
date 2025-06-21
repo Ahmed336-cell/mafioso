@@ -54,21 +54,23 @@ class _MainMenuState extends State<MainMenuScreen> {
           ),
           child: SafeArea(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'مافيوسو',
-                    style: TextStyle(
-                      fontSize: 52,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontFamily: 'Cairo',
-                    ),
-                  ).animate().fadeIn(delay: 200.ms).slideY(begin: -0.3, end: 0),
-                  const SizedBox(height: 60),
-                  ..._buildMenuButtons(context),
-                ],
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'مافيوسو',
+                      style: TextStyle(
+                        fontSize: 52,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'Cairo',
+                      ),
+                    ).animate().fadeIn(delay: 200.ms).slideY(begin: -0.3, end: 0),
+                    const SizedBox(height: 60),
+                    ..._buildMenuButtons(context),
+                  ],
+                ),
               ),
             ),
           ),

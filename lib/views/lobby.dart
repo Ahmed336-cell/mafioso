@@ -629,132 +629,60 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
   }
 
   Widget _buildPlayersList(GameRoom room) {
-    final hostPlayer = room.players.firstWhere((p) => p.id == room.hostId, orElse: () => room.players.first);
-    final otherPlayers = room.players.where((p) => p.id != room.hostId).toList();
-    
-    return Column(
-      children: [
-        // Host Section
-        Card(
-          color: Colors.amber.withOpacity(0.1),
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-            side: BorderSide(color: Colors.amber, width: 2),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'اللاعبون',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.amber,
-                  radius: 25,
-                  child: const Icon(
-                    Icons.admin_panel_settings,
-                    color: Colors.white,
-                    size: 30,
-                  ),
+          const SizedBox(height: 16),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 380, // Max width for each item
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 4.8, // Adjust this ratio as needed
+            ),
+            itemCount: room.players.length,
+            itemBuilder: (context, index) {
+              final player = room.players[index];
+              final isHost = player.id == room.hostId;
+              return Card(
+                color: Colors.white.withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: isHost ? Colors.amber : Colors.deepPurple, width: 2),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hostPlayer.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber,
-                          fontFamily: 'Cairo',
-                        ),
+                child: Center(
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isHost ? Colors.amber[300] : Colors.deepPurple[300],
+                      child: Text(
+                        player.avatar.isNotEmpty ? player.avatar : '?',
+                        style: const TextStyle(fontSize: 24, color: Colors.white),
                       ),
-                      const Text(
-                        'مدير اللعبة',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.amber,
-                          fontFamily: 'Cairo',
-                        ),
-                      ),
-                    ],
+                    ),
+                    title: Text(
+                      player.name,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    trailing: isHost
+                        ? const Icon(Icons.admin_panel_settings, color: Colors.amber)
+                        : null,
                   ),
                 ),
-                const Chip(
-                  label: Text('المضيف'),
-                  backgroundColor: Colors.amber,
-                  labelStyle: TextStyle(
-                    color: Colors.black,
-                    fontFamily: 'Cairo',
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+              ).animate(delay: (100 * index).ms).fadeIn(duration: 500.ms).slideX(begin: -0.2);
+            },
           ),
-        ),
-        
-        // Other Players Section
-        if (otherPlayers.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              'اللاعبون',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontFamily: 'Cairo',
-              ),
-            ),
-          ),
-          Card(
-            color: Colors.white.withOpacity(0.9),
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: otherPlayers.length,
-              itemBuilder: (context, index) {
-                return _buildPlayerCard(otherPlayers[index], isHost: false);
-              },
-            ),
-          ),
+          const SizedBox(height: 24),
         ],
-      ],
+      ),
     );
-  }
-
-  Widget _buildPlayerCard(Player player, {bool isHost = false}) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isHost ? Colors.amber : Colors.deepPurple,
-          child: Text(
-            player.avatar,
-            style: const TextStyle(fontSize: 20, fontFamily: 'Cairo'),
-          ),
-        ),
-        title: Text(
-          player.name,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Cairo'),
-        ),
-        trailing: isHost
-            ? const Chip(
-          label: Text('المضيف'),
-          backgroundColor: Colors.amber,
-          labelStyle: TextStyle(
-              color: Colors.black,
-              fontFamily: 'Cairo'),
-        )
-            : null,
-      ),
-    ).animate().fadeIn().slideX();
   }
 
   Widget _buildAddDummyPlayerButton() {

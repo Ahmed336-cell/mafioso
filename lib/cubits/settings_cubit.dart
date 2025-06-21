@@ -88,13 +88,26 @@ class SettingsCubit extends Cubit<SettingsState> {
     await saveUserSettings(newSettings);
   }
 
-  Future<void> updateGameStats(String userId, int gamesPlayed, int gamesWon, int totalScore) async {
-    if (_currentSettings == null) return;
+  Future<void> incrementGameStats({required String userId, required bool didWin}) async {
+    // Ensure settings are loaded first. If not, load them.
+    if (_currentSettings == null || _currentSettings!.userId != userId) {
+      await loadUserSettings(userId);
+    }
     
+    // If settings are still null after trying to load, we cannot proceed.
+    if (_currentSettings == null) {
+      emit(SettingsError('لا يمكن تحديث الإحصائيات لأن إعدادات المستخدم غير متاحة.'));
+      return;
+    }
+
+    final newGamesPlayed = _currentSettings!.gamesPlayed + 1;
+    final newGamesWon = didWin ? _currentSettings!.gamesWon + 1 : _currentSettings!.gamesWon;
+    final newTotalScore = didWin ? _currentSettings!.totalScore + 10 : _currentSettings!.totalScore + 1; // 10 points for a win, 1 for a loss
+
     final newSettings = _currentSettings!.copyWith(
-      gamesPlayed: gamesPlayed,
-      gamesWon: gamesWon,
-      totalScore: totalScore,
+      gamesPlayed: newGamesPlayed,
+      gamesWon: newGamesWon,
+      totalScore: newTotalScore,
     );
 
     await saveUserSettings(newSettings);

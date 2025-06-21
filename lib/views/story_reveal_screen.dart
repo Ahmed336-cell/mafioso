@@ -196,6 +196,8 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          _buildWinnerCard(),
+          const SizedBox(height: 24),
           _buildMafiosoReveal(),
           const SizedBox(height: 32),
           if (_showConfession) _buildConfession(),
@@ -204,6 +206,60 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
         ],
       ),
     );
+  }
+
+  Widget _buildWinnerCard() {
+    bool isCivilianWin = widget.room.winner == 'مدنيين';
+    String title = isCivilianWin ? 'المدنيون انتصروا!' : 'المافيا انتصرت!';
+    String subtitle = isCivilianWin
+        ? 'لقد نجحتم في كشف المافيا وتحقيق العدالة.'
+        : 'لقد نجحت المافيا في السيطرة على المدينة.';
+    IconData icon = isCivilianWin ? Icons.shield : Icons.gavel;
+    Color color = isCivilianWin ? Colors.green : Colors.red;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.3),
+            color.withOpacity(0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color, width: 2),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 800.ms, delay: 500.ms).slideY(begin: 0.5);
   }
 
   Widget _buildMafiosoReveal() {

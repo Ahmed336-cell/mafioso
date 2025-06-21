@@ -157,6 +157,20 @@ class GameRoom {
 
   factory GameRoom.fromJson(Map<String, dynamic> json) {
     var playersData = json['players'] as List<dynamic>? ?? [];
+    var chatMessagesData = json['chatMessages'];
+
+    List<Map<String, dynamic>> chatMessagesList = [];
+    if (chatMessagesData is Map) {
+      // If it's a map (from Firebase), convert it to a list of its values.
+      chatMessagesList = chatMessagesData.values
+          .map((msg) => Map<String, dynamic>.from(msg as Map))
+          .toList();
+    } else if (chatMessagesData is List) {
+      // If it's already a list, use it directly.
+      chatMessagesList = chatMessagesData
+          .map((msg) => Map<String, dynamic>.from(msg as Map))
+          .toList();
+    }
 
     return GameRoom(
       id: json['id'] as String,
@@ -178,7 +192,7 @@ class GameRoom {
       winner: json['winner'] as String?,
       discussionDuration: json['discussionDuration'] as int? ?? 300,
       defensePlayers: List<String>.from(json['defensePlayers'] ?? []),
-      chatMessages: (json['chatMessages'] as List<dynamic>? ?? []).map((msg) => Map<String, dynamic>.from(msg)).toList(),
+      chatMessages: chatMessagesList,
       currentClueIndex: json['currentClueIndex'] as int? ?? 0,
       roomName: json['roomName'] as String? ?? '',
       pin: json['pin'] as String? ?? '',

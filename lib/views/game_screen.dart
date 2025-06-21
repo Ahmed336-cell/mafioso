@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,16 +9,6 @@ import 'countdown_timer.dart';
 import 'main_menu.dart';
 import 'player_card.dart';
 import 'story_reveal_screen.dart';
-import 'package:firebase_database/firebase_database.dart';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../cubits/game_cubit.dart';
-import '../models/game_room.dart';
-import '../models/player.dart';
-import 'countdown_timer.dart';
-import 'player_card.dart';
 import 'package:firebase_database/firebase_database.dart';
 
 class GameScreen extends StatefulWidget {
@@ -34,8 +25,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final PageController _clueController = PageController();
   int? _lastTimeLeft;
   String? _lastPhase;
+  String? _lastStatus;
   bool _showPhaseDialog = false;
   String _currentPhaseForDialog = '';
+  bool _showStartCountdown = false;
+  int _countdownNumber = 3;
+  Timer? _countdownTimer;
 
   @override
   void initState() {
@@ -50,6 +45,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+
+    // Initialize last known status and phase to correctly detect changes.
+    final state = context.read<GameCubit>().state;
+    if (state is GameRoomLoaded) {
+      _lastStatus = state.room.status;
+      _lastPhase = state.room.currentPhase;
+      // If we are entering the game screen and the game is already in 'playing' state,
+      // which means we just transitioned from the lobby after the game started.
+      if (state.room.status == 'playing') {
+        _showStartGameCountdown();
+      }
+    }
   }
 
   @override
@@ -58,7 +65,35 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _timerController.dispose();
     _pulseController.dispose();
     _clueController.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _showStartGameCountdown() {
+    setState(() {
+      _showStartCountdown = true;
+      _countdownNumber = 3;
+    });
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1, milliseconds: 200), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _countdownNumber--;
+      });
+      if (_countdownNumber < 0) {
+        timer.cancel();
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) {
+            setState(() {
+              _showStartCountdown = false;
+            });
+          }
+        });
+      }
+    });
   }
 
   void _updateTimerController(int seconds, String phase) {
@@ -76,10 +111,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return BlocListener<GameCubit, GameState>(
       listener: (context, state) {
-        if (state is GameRoomLoaded && state.room.isGameOver) {
-          _showGameResultDialog(context, state.room);
-        }
         if (state is GameRoomLoaded) {
+          // This logic is now moved to initState to only trigger on screen load.
+          // if (_lastStatus == 'waiting' && state.room.status == 'playing') {
+          //   _showStartGameCountdown();
+          // }
+          _lastStatus = state.room.status;
+
+          if (state.room.isGameOver) {
+            _showGameResultDialog(context, state.room);
+          }
+
           final phase = state.room.currentPhase;
           final timeLeft = state.room.timeLeft;
           if (_lastTimeLeft != timeLeft || _lastPhase != phase) {
@@ -368,8 +410,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                             GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
+                              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 200,
                                 childAspectRatio: 1.2,
                                 crossAxisSpacing: 12,
                                 mainAxisSpacing: 12,
@@ -521,6 +563,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 _buildPhaseAnnouncementDialog(),
+                _buildStartCountdownOverlay(),
               ],
             ),
           );
@@ -1914,6 +1957,52 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  Widget _buildStartCountdownOverlay() {
+    if (!_showStartCountdown) return const SizedBox.shrink();
+
+    String text;
+    if (_countdownNumber > 0) {
+      text = _countdownNumber.toString();
+    } else {
+      text = 'انطلق!';
+    }
+    
+    if (_countdownNumber < 0) return const SizedBox.shrink();
+
+    return Container(
+      color: Colors.black.withOpacity(0.85),
+      child: Center(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return ScaleTransition(scale: animation, child: child);
+          },
+          child: Text(
+            text,
+            key: ValueKey<String>(text),
+            style: TextStyle(
+              fontSize: 150,
+              fontWeight: FontWeight.bold,
+              color: Colors.amber,
+              shadows: [
+                Shadow(
+                  blurRadius: 30,
+                  color: Colors.amber.withOpacity(0.8),
+                  offset: const Offset(0, 0),
+                ),
+                const Shadow(
+                  blurRadius: 10,
+                  color: Colors.black,
+                  offset: Offset(4, 4),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate().fadeIn(duration: 300.ms);
   }
 }
 

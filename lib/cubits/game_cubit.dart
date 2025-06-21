@@ -8,17 +8,19 @@ import '../models/game_room.dart';
 import '../models/player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'settings_cubit.dart';
 
 part 'game_state.dart';
 
 class GameCubit extends Cubit<GameState> {
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
+  final SettingsCubit settingsCubit;
   GameRoom? currentRoom;
   Player? currentPlayer;
   StreamSubscription? _roomSubscription;
   Timer? _gameTimer;
 
-  GameCubit() : super(GameInitial());
+  GameCubit({required this.settingsCubit}) : super(GameInitial());
 
   @override
   Future<void> close() {
@@ -366,6 +368,23 @@ class GameCubit extends Cubit<GameState> {
         await _database.child('rooms').child(currentRoom!.id).update(updateData);
 
         if (gameOver) {
+          // Update stats for all players
+          for (final player in updatedPlayers) {
+            // Skip host
+            if (player.role == 'مضيف') continue;
+
+            bool didWin = false;
+            if (winner == 'مدنيين' && player.role == 'مدني') {
+              didWin = true;
+            } else if (winner == 'مافيوسو' && player.role == 'مافيوسو') {
+              didWin = true;
+            }
+            
+            // It's important to use the player's actual ID from your authentication system
+            // if it's stored in the player object. Here, we assume player.id is the correct user ID.
+            await settingsCubit.incrementGameStats(userId: player.id, didWin: didWin);
+          }
+
           // حذف الغرفة بعد 10 ثوانٍ من انتهاء اللعبة
           Future.delayed(const Duration(seconds: 10), () async {
             await _database.child('rooms').child(currentRoom!.id).remove();
@@ -457,32 +476,53 @@ class GameCubit extends Cubit<GameState> {
     _roomSubscription = _database.child('rooms').child(roomId)
         .onValue.listen((event) async {
       if (!event.snapshot.exists) {
-        emit(GameError('تم حذف الغرفة'));
+        // If the room is deleted, go back to the initial state.
+        currentRoom = null;
+        currentPlayer = null;
+        _roomSubscription?.cancel();
+        _gameTimer?.cancel();
+        emit(GameInitial());
         return;
       }
       try {
-        currentRoom = GameRoom.fromJson(
+        final newRoom = GameRoom.fromJson(
           Map<String, dynamic>.from(event.snapshot.value as Map)
         );
-        // اجلب playerId المحفوظ
-        final prefs = await SharedPreferences.getInstance();
-        final savedId = prefs.getString('mafioso_player_id');
-        Player? foundPlayer;
-        if (savedId != null) {
+        currentRoom = newRoom; // Always update the current room
+
+        // Try to find the current player in the updated player list.
+        // This is important to get the latest state (e.g., isAlive).
+        if (currentPlayer != null) {
           try {
-            foundPlayer = currentRoom!.players.firstWhere(
-              (p) => p.id == savedId,
-              orElse: () => currentRoom!.players.isNotEmpty ? currentRoom!.players.first : throw Exception('no players'),
-            );
-            if (foundPlayer.id != savedId) foundPlayer = null;
-          } catch (_) {
-            foundPlayer = null;
+            currentPlayer = newRoom.players.firstWhere((p) => p.id == currentPlayer!.id);
+          } catch (e) {
+            // Player is no longer in the room (e.g., kicked or left).
+            // In this case, we might want to reset the player state.
+            // For now, we'll keep the old player object to avoid nulling it out
+            // during minor sync issues, but if the player is truly gone,
+            // this could lead to stale data. A better approach might be needed
+            // if players being removed is a regular occurrence.
+            debugPrint('Could not find current player in updated room, player might have been removed.');
           }
         }
-        currentPlayer = foundPlayer;
-        emit(GameRoomLoaded(currentRoom!, currentPlayer));
+        
+        // If currentPlayer is still null (e.g., after joining), try to find it again.
+        if (currentPlayer == null) {
+          final prefs = await SharedPreferences.getInstance();
+          final savedId = prefs.getString('mafioso_player_id');
+          if (savedId != null) {
+            try {
+              currentPlayer = newRoom.players.firstWhere((p) => p.id == savedId);
+            } catch (e) {
+              // Saved player not in the room.
+              debugPrint('Saved player ID not found in the room.');
+            }
+          }
+        }
+
+        emit(GameRoomLoaded(newRoom, currentPlayer));
       } catch (e) {
-        emit(GameError('حدث خطأ أثناء تحديث حالة الغرفة'));
+        emit(GameError('حدث خطأ أثناء تحديث حالة الغرفة: $e'));
       }
     });
   }
@@ -629,16 +669,6 @@ class GameCubit extends Cubit<GameState> {
     };
     final ref = _database.child('rooms').child(currentRoom!.id).child('chatMessages');
     await ref.push().set(message);
-
-    // After sending a message, we should re-emit the state to ensure the UI updates if needed.
-    // The listener on the room updates should handle the new message, but in some cases,
-    // explicitly emitting the state can prevent UI inconsistencies.
-    if (state is GameRoomLoaded) {
-      final currentState = state as GameRoomLoaded;
-      // We don't modify the local room object here, because the stream listener will do that.
-      // We just re-emit the existing state to trigger a UI refresh if necessary.
-      emit(GameRoomLoaded(currentState.room, currentState.currentPlayer));
-    }
   }
 
   // دالة لاسترجاع playerId المخزن

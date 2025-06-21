@@ -17,7 +17,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     
     // Load user settings when screen opens
     final currentUser = FirebaseAuth.instance.currentUser;

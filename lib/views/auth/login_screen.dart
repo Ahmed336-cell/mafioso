@@ -64,73 +64,75 @@ class _LoginScreenState extends State<LoginScreen> {
           },
           child: Form(
             key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'تسجيل الدخول',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ).animate().fadeIn().slideY(begin: -0.5, end: 0),
-                const SizedBox(height: 32),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: 'البريد الإلكتروني',
-                    prefixIcon: const Icon(Icons.email),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'تسجيل الدخول',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) =>
-                  value!.isEmpty ? 'الرجاء إدخال البريد الإلكتروني' : null,
-                ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.5, end: 0),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'كلمة المرور',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  obscureText: _obscurePassword,
-                  validator: (value) =>
-                  value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
-                ).animate().fadeIn(delay: 200.ms).slideX(begin: 0.5, end: 0),
-                const SizedBox(height: 24),
-                if (_isLoading)
-                  const CircularProgressIndicator()
-                      .animate()
-                      .fadeIn(duration: 300.ms)
-                else
-                  ElevatedButton(
-                    onPressed: _login,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
+                  ).animate().fadeIn().slideY(begin: -0.5, end: 0),
+                  const SizedBox(height: 32),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      labelText: 'البريد الإلكتروني',
+                      prefixIcon: const Icon(Icons.email),
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('دخول'),
-                  ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.5, end: 0),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: widget.onSignUpTapped,
-                  child: const Text('ليس لديك حساب؟ إنشاء حساب جديد'),
-                ).animate().fadeIn(delay: 400.ms),
-              ],
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) =>
+                    value!.isEmpty ? 'الرجاء إدخال البريد الإلكتروني' : null,
+                  ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.5, end: 0),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      labelText: 'كلمة المرور',
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    obscureText: _obscurePassword,
+                    validator: (value) =>
+                    value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
+                  ).animate().fadeIn(delay: 200.ms).slideX(begin: 0.5, end: 0),
+                  const SizedBox(height: 24),
+                  if (_isLoading)
+                    const CircularProgressIndicator()
+                        .animate()
+                        .fadeIn(duration: 300.ms)
+                  else
+                    ElevatedButton(
+                      onPressed: _login,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('دخول'),
+                    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.5, end: 0),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: widget.onSignUpTapped,
+                    child: const Text('ليس لديك حساب؟ إنشاء حساب جديد'),
+                  ).animate().fadeIn(delay: 400.ms),
+                ],
+              ),
             ),
           ),
         ),
