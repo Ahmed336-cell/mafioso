@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../cubits/settings_cubit.dart';
 import '../models/user_settings.dart';
-import '../services/audio_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -41,11 +40,13 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
         backgroundColor: Colors.deepPurple[800],
         foregroundColor: Colors.white,
         bottom: TabBar(
+          indicatorColor: Colors.redAccent,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
           controller: _tabController,
           tabs: const [
             Tab(icon: Icon(Icons.settings), text: 'اللعبة'),
             Tab(icon: Icon(Icons.person), text: 'الحساب'),
-            Tab(icon: Icon(Icons.volume_up), text: 'الصوت'),
           ],
         ),
       ),
@@ -66,7 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
           children: [
             _buildGameSettings(),
             _buildAccountSettings(),
-            _buildAudioSettings(),
+            //_buildAudioSettings(),
           ],
         ),
       ),
@@ -88,18 +89,18 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildSectionHeader('إعدادات اللعبة العامة'),
-                _buildSwitchTile(
-                  'تخطي المراحل تلقائياً',
-                  'تخطي المراحل عند انتهاء الوقت',
-                  settings.autoSkipPhase,
-                  (value) => context.read<SettingsCubit>().toggleAutoSkipPhase(),
-                ),
-                _buildSwitchTile(
-                  'إظهار الدور بعد الموت',
-                  'إظهار دور اللاعب بعد إقصائه',
-                  settings.showRoleAfterDeath,
-                  (value) => context.read<SettingsCubit>().toggleShowRoleAfterDeath(),
-                ),
+                // _buildSwitchTile(
+                //   'تخطي المراحل تلقائياً',
+                //   'تخطي المراحل عند انتهاء الوقت',
+                //   settings.autoSkipPhase,
+                //   (value) => context.read<SettingsCubit>().toggleAutoSkipPhase(),
+                // ),
+                // _buildSwitchTile(
+                //   'إظهار الدور بعد الموت',
+                //   'إظهار دور اللاعب بعد إقصائه',
+                //   settings.showRoleAfterDeath,
+                //   (value) => context.read<SettingsCubit>().toggleShowRoleAfterDeath(),
+                // ),
                 _buildSwitchTile(
                   'إظهار المؤقت',
                   'إظهار مؤقت المرحلة',
@@ -116,11 +117,10 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                 _buildSectionHeader('مدة النقاش الافتراضية'),
                 _buildDurationSelector(settings.defaultDiscussionDuration),
                 const SizedBox(height: 20),
-                _buildSectionHeader('المظهر'),
-                _buildThemeSelector(settings.theme),
+                // _buildSectionHeader('المظهر'),
+                // _buildThemeSelector(settings.theme),
                 const SizedBox(height: 20),
-                _buildSectionHeader('اللغة'),
-                _buildLanguageSelector(settings.language),
+
               ],
             ),
           );
@@ -152,41 +152,41 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
                 _buildInfoCard('الألعاب المربوحة', settings.gamesWon.toString()),
                 _buildInfoCard('النقاط الإجمالية', settings.totalScore.toString()),
                 const SizedBox(height: 20),
-                _buildSectionHeader('إعدادات الإشعارات'),
-                _buildSwitchTile(
-                  'إشعارات البريد الإلكتروني',
-                  'استلام إشعارات عبر البريد الإلكتروني',
-                  settings.emailNotifications,
-                  (value) => context.read<SettingsCubit>().updateUserSettings(
-                    settings.copyWith(emailNotifications: value),
-                  ),
-                ),
-                _buildSwitchTile(
-                  'إشعارات التطبيق',
-                  'استلام إشعارات في التطبيق',
-                  settings.pushNotifications,
-                  (value) => context.read<SettingsCubit>().updateUserSettings(
-                    settings.copyWith(pushNotifications: value),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _buildSectionHeader('الخصوصية'),
-                _buildSwitchTile(
-                  'إظهار حالة الاتصال',
-                  'إظهار أنك متصل للآخرين',
-                  settings.showOnlineStatus,
-                  (value) => context.read<SettingsCubit>().updateUserSettings(
-                    settings.copyWith(showOnlineStatus: value),
-                  ),
-                ),
-                _buildSwitchTile(
-                  'السماح بطلبات الصداقة',
-                  'السماح للآخرين بإرسال طلبات صداقة',
-                  settings.allowFriendRequests,
-                  (value) => context.read<SettingsCubit>().updateUserSettings(
-                    settings.copyWith(allowFriendRequests: value),
-                  ),
-                ),
+                // _buildSectionHeader('إعدادات الإشعارات'),
+                // _buildSwitchTile(
+                //   'إشعارات البريد الإلكتروني',
+                //   'استلام إشعارات عبر البريد الإلكتروني',
+                //   settings.emailNotifications,
+                //   (value) => context.read<SettingsCubit>().updateUserSettings(
+                //     settings.copyWith(emailNotifications: value),
+                //   ),
+                // ),
+                // _buildSwitchTile(
+                //   'إشعارات التطبيق',
+                //   'استلام إشعارات في التطبيق',
+                //   settings.pushNotifications,
+                //   (value) => context.read<SettingsCubit>().updateUserSettings(
+                //     settings.copyWith(pushNotifications: value),
+                //   ),
+                // ),
+                // const SizedBox(height: 20),
+                // _buildSectionHeader('الخصوصية'),
+                // _buildSwitchTile(
+                //   'إظهار حالة الاتصال',
+                //   'إظهار أنك متصل للآخرين',
+                //   settings.showOnlineStatus,
+                //   (value) => context.read<SettingsCubit>().updateUserSettings(
+                //     settings.copyWith(showOnlineStatus: value),
+                //   ),
+                // ),
+                // _buildSwitchTile(
+                //   'السماح بطلبات الصداقة',
+                //   'السماح للآخرين بإرسال طلبات صداقة',
+                //   settings.allowFriendRequests,
+                //   (value) => context.read<SettingsCubit>().updateUserSettings(
+                //     settings.copyWith(allowFriendRequests: value),
+                //   ),
+                // ),
               ],
             ),
           );
@@ -197,89 +197,88 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildAudioSettings() {
-    final audioService = AudioService();
-    
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader('إعدادات الموسيقى'),
-          _buildSwitchTile(
-            'تفعيل الموسيقى',
-            'تشغيل موسيقى الخلفية',
-            audioService.isMusicEnabled,
-            (value) async {
-              await audioService.setMusicEnabled(value);
-              setState(() {});
-            },
-          ),
-          if (audioService.isMusicEnabled) ...[
-            const SizedBox(height: 10),
-            _buildVolumeSlider(
-              'مستوى الموسيقى',
-              audioService.musicVolume,
-              (value) async {
-                await audioService.setMusicVolume(value);
-                setState(() {});
-              },
-            ),
-          ],
-          const SizedBox(height: 20),
-          _buildSectionHeader('إعدادات الأصوات'),
-          _buildSwitchTile(
-            'تفعيل الأصوات',
-            'تشغيل أصوات التأثيرات',
-            audioService.isSfxEnabled,
-            (value) async {
-              await audioService.setSfxEnabled(value);
-              setState(() {});
-            },
-          ),
-          if (audioService.isSfxEnabled) ...[
-            const SizedBox(height: 10),
-            _buildVolumeSlider(
-              'مستوى الأصوات',
-              audioService.sfxVolume,
-              (value) async {
-                await audioService.setSfxVolume(value);
-                setState(() {});
-              },
-            ),
-          ],
-          const SizedBox(height: 20),
-          _buildSectionHeader('اختبار الأصوات'),
-          _buildTestButtons(audioService),
-        ],
-      ),
-    );
-  }
+  // Widget _buildAudioSettings() {
+  //
+  //   return SingleChildScrollView(
+  //     padding: const EdgeInsets.all(16),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         _buildSectionHeader('إعدادات الموسيقى'),
+  //         _buildSwitchTile(
+  //           'تفعيل الموسيقى',
+  //           'تشغيل موسيقى الخلفية',
+  //           audioService.isMusicEnabled,
+  //           (value) async {
+  //             await audioService.setMusicEnabled(value);
+  //             setState(() {});
+  //           },
+  //         ),
+  //         if (audioService.isMusicEnabled) ...[
+  //           const SizedBox(height: 10),
+  //           _buildVolumeSlider(
+  //             'مستوى الموسيقى',
+  //             audioService.musicVolume,
+  //             (value) async {
+  //               await audioService.setMusicVolume(value);
+  //               setState(() {});
+  //             },
+  //           ),
+  //         ],
+  //         const SizedBox(height: 20),
+  //         _buildSectionHeader('إعدادات الأصوات'),
+  //         _buildSwitchTile(
+  //           'تفعيل الأصوات',
+  //           'تشغيل أصوات التأثيرات',
+  //           audioService.isSfxEnabled,
+  //           (value) async {
+  //             await audioService.setSfxEnabled(value);
+  //             setState(() {});
+  //           },
+  //         ),
+  //         if (audioService.isSfxEnabled) ...[
+  //           const SizedBox(height: 10),
+  //           _buildVolumeSlider(
+  //             'مستوى الأصوات'
+  //             // audioService.sfxVolume,
+  //             // (value) async {
+  //             //   await audioService.setSfxVolume(value);
+  //             //   setState(() {});
+  //             // },
+  //           ),
+  //         ],
+  //         const SizedBox(height: 20),
+  //         _buildSectionHeader('اختبار الأصوات'),
+  //    //     _buildTestButtons(audioService),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _buildTestButtons(AudioService audioService) {
-    return Card(
-      color: Colors.blueGrey[800],
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('اختبار الأصوات', style: TextStyle(color: Colors.white, fontSize: 16)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildTestButton('صوت الزر', () => audioService.playButtonClick()),
-                _buildTestButton('صوت البطاقة', () => audioService.playCardFlip()),
-                _buildTestButton('صوت الإقصاء', () => audioService.playPlayerEliminated()),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _buildTestButtons(AudioService audioService) {
+  //   return Card(
+  //     color: Colors.blueGrey[800],
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           const Text('اختبار الأصوات', style: TextStyle(color: Colors.white, fontSize: 16)),
+  //           const SizedBox(height: 12),
+  //           Wrap(
+  //             spacing: 8,
+  //             runSpacing: 8,
+  //             children: [
+  //               _buildTestButton('صوت الزر', () => audioService.playButtonClick()),
+  //               _buildTestButton('صوت البطاقة', () => audioService.playCardFlip()),
+  //               _buildTestButton('صوت الإقصاء', () => audioService.playPlayerEliminated()),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildTestButton(String label, VoidCallback onPressed) {
     return ElevatedButton(

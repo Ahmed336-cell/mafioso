@@ -10,7 +10,6 @@ import 'main_menu.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../cubits/auth_cubit.dart';
-import '../services/audio_service.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -538,7 +537,6 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
               fontFamily: 'Cairo'),
         ),
         onPressed: _cases.isEmpty ? null : () {
-          AudioService().playButtonClick();
           _confirmSettings(room);
         },
         child: const Text('انتقال'),
@@ -772,7 +770,6 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
           ),
         ),
         onPressed: () {
-          AudioService().playButtonClick();
           context.read<GameCubit>().addDummyPlayers(1);
         },
         child: const Text('إضافة لاعب وهمي'),

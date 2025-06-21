@@ -9,7 +9,6 @@ import 'lobby.dart';
 import 'game_screen.dart';
 import 'settings_screen.dart';
 import 'package:firebase_database/firebase_database.dart';
-import '../services/audio_service.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -186,7 +185,7 @@ class _MainMenuState extends State<MainMenuScreen> {
           shadowColor: Colors.black.withOpacity(0.3),
         ),
         onPressed: () {
-          AudioService().playButtonClick();
+          //AudioService().playButtonClick();
           onPressed();
         },
       ).animate().fadeIn(delay: Duration(milliseconds: delay)),

@@ -618,17 +618,27 @@ class GameCubit extends Cubit<GameState> {
     return avatars[Random().nextInt(avatars.length)];
   }
 
-  Future<void> sendChatMessage(String text) async {
-    if (currentRoom == null || currentPlayer == null) return;
+  Future<void> sendChatMessage(String text, {required String senderId, required String senderName, required String avatar}) async {
+    if (currentRoom == null) return;
     final message = {
-      'senderId': currentPlayer!.id,
-      'senderName': currentPlayer!.name,
-      'avatar': currentPlayer!.avatar,
+      'senderId': senderId,
+      'senderName': senderName,
+      'avatar': avatar,
       'text': text,
       'timestamp': DateTime.now().toIso8601String(),
     };
     final ref = _database.child('rooms').child(currentRoom!.id).child('chatMessages');
     await ref.push().set(message);
+
+    // After sending a message, we should re-emit the state to ensure the UI updates if needed.
+    // The listener on the room updates should handle the new message, but in some cases,
+    // explicitly emitting the state can prevent UI inconsistencies.
+    if (state is GameRoomLoaded) {
+      final currentState = state as GameRoomLoaded;
+      // We don't modify the local room object here, because the stream listener will do that.
+      // We just re-emit the existing state to trigger a UI refresh if necessary.
+      emit(GameRoomLoaded(currentState.room, currentState.currentPlayer));
+    }
   }
 
   // دالة لاسترجاع playerId المخزن

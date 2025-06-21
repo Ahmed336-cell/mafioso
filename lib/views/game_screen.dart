@@ -420,7 +420,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                             // Host Controls
                             if (currentPlayer!.role == 'مضيف') ...[
                               const SizedBox(height: 24),
-                              _buildHostControls(context, room),
+                              _buildHostControls(context, room, currentPlayer),
                             ],
 
                             // Skip Button
@@ -1324,7 +1324,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                 ? () {
                                     final text = msgController.text.trim();
                                     if (text.isNotEmpty) {
-                                      context.read<GameCubit>().sendChatMessage(text);
+                                      context.read<GameCubit>().sendChatMessage(
+                                        text,
+                                        senderId: currentPlayer.id,
+                                        senderName: currentPlayer.name,
+                                        avatar: currentPlayer.avatar,
+                                      );
                                       msgController.clear();
                                     }
                                   }
@@ -1607,7 +1612,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHostControls(BuildContext context, GameRoom room) {
+  Widget _buildHostControls(BuildContext context, GameRoom room, Player currentPlayer) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1644,6 +1649,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               _showGameInfo(context, room);
             },
           ),
+          if (room.currentPhase == 'discussion') ...[
+            const SizedBox(height: 12),
+            _buildChatButton(context, room, currentPlayer),
+          ],
         ],
       ),
     );
