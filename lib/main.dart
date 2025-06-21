@@ -5,12 +5,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'cubits/auth_cubit.dart';
 import 'cubits/auth_state.dart';
 import 'cubits/game_cubit.dart';
+import 'cubits/settings_cubit.dart';
 import 'views/main_menu.dart';
 import 'views/auth/auth_toggle.dart';
+import 'services/audio_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await AudioService().initialize();
   runApp(MafiosoApp());
 }
 
@@ -23,6 +26,7 @@ class MafiosoApp extends StatelessWidget {
       providers: [
         BlocProvider(create: (_) => AuthCubit()),
         BlocProvider(create: (_) => GameCubit()),
+        BlocProvider(create: (_) => SettingsCubit()),
       ],
       child: MaterialApp(
         title: 'مافيوسو',
