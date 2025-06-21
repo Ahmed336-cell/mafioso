@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mafioso/cubits/auth_state.dart';
@@ -260,64 +261,77 @@ class _MainMenuState extends State<MainMenuScreen> {
 
   void _showJoinRoomDialog(BuildContext context) {
     final TextEditingController roomIdController = TextEditingController();
-    final List<TextEditingController> pinControllers =
-    List.generate(6, (_) => TextEditingController());
+    final TextEditingController pinController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('الدخول إلى غرفة'),
+        backgroundColor: Colors.blueGrey[900],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.deepPurple[300]!, width: 2),
+        ),
+        title: const Text('الدخول إلى غرفة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: roomIdController,
-              decoration: const InputDecoration(
-                labelText: 'رمز الغرفة',
-                border: OutlineInputBorder(),
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              inputFormatters: [
+                UpperCaseTextFormatter(),
+              ],
+              decoration: InputDecoration(
+                labelText: 'معرف الغرفة',
+                labelStyle: const TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.deepPurple[300]!),
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(6, (i) => Container(
-                width: 36,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                child: TextField(
-                  controller: pinControllers[i],
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  maxLength: 1,
-                  decoration: const InputDecoration(
-                    counterText: '',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (val) {
-                    if (val.length == 1 && i < 5) {
-                      FocusScope.of(context).nextFocus();
-                    }
-                  },
+            TextField(
+              controller: pinController,
+              style: const TextStyle(color: Colors.white, fontSize: 20, letterSpacing: 8),
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              decoration: InputDecoration(
+                labelText: 'الرمز السري (6 أرقام)',
+                labelStyle: const TextStyle(color: Colors.white70, letterSpacing: 1),
+                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.deepPurple[300]!),
                 ),
-              )),
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             onPressed: () {
-              final pin = pinControllers.map((c) => c.text).join();
-              if (roomIdController.text.trim().isNotEmpty && pin.length == 6) {
+              final roomId = roomIdController.text.trim();
+              final pin = pinController.text.trim();
+              if (roomId.isNotEmpty && pin.isNotEmpty) {
                 Navigator.pop(context);
-                context.read<GameCubit>().joinRoom(
-                  roomIdController.text.trim(),
-                  pin: pin,
-                );
+                context.read<GameCubit>().joinRoom(roomId, pin: pin);
               }
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('دخول'),
           ),
         ],
@@ -325,17 +339,17 @@ class _MainMenuState extends State<MainMenuScreen> {
     );
   }
 
-  void _rejoinRoom(BuildContext context) async {
-    try {
-      context.read<GameCubit>().rejoinRoom();
-      await _checkForSavedRoom();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('حدث خطأ أثناء إعادة الانضمام: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+  void _rejoinRoom(BuildContext context) {
+    context.read<GameCubit>().rejoinRoom();
+  }
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
   }
 }

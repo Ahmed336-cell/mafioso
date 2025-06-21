@@ -42,7 +42,6 @@ class GameRoom {
   String caseTitle;
   String caseDescription;
   List<String> clues;
-  Map<String, dynamic> votes; // Changed to dynamic to support both old and new format
   int currentRound;
   List<String> eliminatedPlayers;
   String? lastEliminatedPlayer;
@@ -56,6 +55,8 @@ class GameRoom {
   final String pin;
   bool isFinalShowdown;
   String mafiosoStory;
+  String? lastEliminatedPlayerId;
+  String? phaseMessage;
 
   GameRoom({
     required this.id,
@@ -67,7 +68,6 @@ class GameRoom {
     this.caseTitle = '',
     this.caseDescription = '',
     this.clues = const [],
-    this.votes = const {},
     this.currentRound = 1,
     this.eliminatedPlayers = const [],
     this.lastEliminatedPlayer,
@@ -81,51 +81,9 @@ class GameRoom {
     required this.pin,
     this.isFinalShowdown = false,
     this.mafiosoStory = '',
+    this.lastEliminatedPlayerId,
+    this.phaseMessage,
   });
-
-  // Helper method to get vote info
-  VoteInfo? getVoteInfo(String voterId) {
-    final voteData = votes[voterId];
-    if (voteData == null) return null;
-    
-    if (voteData is String) {
-      // Old format - just target ID
-      return VoteInfo(
-        targetId: voteData,
-        isWrongVote: false,
-        voterRole: 'مدني',
-        timestamp: 0,
-      );
-    } else if (voteData is Map<String, dynamic>) {
-      // New format - with additional info
-      return VoteInfo.fromJson(voteData);
-    }
-    return null;
-  }
-
-  // Helper method to get all wrong votes by civilians
-  List<VoteInfo> get wrongVotesByCivilians {
-    List<VoteInfo> wrongVotes = [];
-    votes.forEach((voterId, voteData) {
-      final voteInfo = getVoteInfo(voterId);
-      if (voteInfo != null && voteInfo.isWrongVote && voteInfo.voterRole == 'مدني') {
-        wrongVotes.add(voteInfo);
-      }
-    });
-    return wrongVotes;
-  }
-
-  // Helper method to get simple vote mapping (for backward compatibility)
-  Map<String, String> get simpleVotes {
-    Map<String, String> simpleVotes = {};
-    votes.forEach((voterId, voteData) {
-      final voteInfo = getVoteInfo(voterId);
-      if (voteInfo != null) {
-        simpleVotes[voterId] = voteInfo.targetId;
-      }
-    });
-    return simpleVotes;
-  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -138,7 +96,6 @@ class GameRoom {
       'caseTitle': caseTitle,
       'caseDescription': caseDescription,
       'clues': clues,
-      'votes': votes,
       'currentRound': currentRound,
       'eliminatedPlayers': eliminatedPlayers,
       'lastEliminatedPlayer': lastEliminatedPlayer,
@@ -152,6 +109,8 @@ class GameRoom {
       'pin': pin,
       'isFinalShowdown': isFinalShowdown,
       'confession': mafiosoStory,
+      'lastEliminatedPlayerId': lastEliminatedPlayerId,
+      'phaseMessage': phaseMessage,
     };
   }
 
@@ -184,7 +143,6 @@ class GameRoom {
       caseTitle: json['caseTitle'] as String? ?? '',
       caseDescription: json['caseDescription'] as String? ?? '',
       clues: List<String>.from(json['clues'] ?? []),
-      votes: Map<String, dynamic>.from(json['votes'] ?? {}),
       currentRound: json['currentRound'] as int? ?? 1,
       eliminatedPlayers: List<String>.from(json['eliminatedPlayers'] ?? []),
       lastEliminatedPlayer: json['lastEliminatedPlayer'] as String?,
@@ -198,6 +156,8 @@ class GameRoom {
       pin: json['pin'] as String? ?? '',
       isFinalShowdown: json['isFinalShowdown'] as bool? ?? false,
       mafiosoStory: json['confession'] as String? ?? '',
+      lastEliminatedPlayerId: json['lastEliminatedPlayerId'] as String?,
+      phaseMessage: json['phaseMessage'],
     );
   }
 
@@ -211,4 +171,55 @@ class GameRoom {
   bool get isDiscussionPhase => currentPhase == 'discussion';
   bool get isDefensePhase => currentPhase == 'defense';
   bool get isRevealPhase => currentPhase == 'reveal';
+
+  GameRoom copyWith({
+    String? status,
+    String? currentPhase,
+    int? timeLeft,
+    String? caseTitle,
+    String? caseDescription,
+    List<String>? clues,
+    int? currentRound,
+    List<String>? eliminatedPlayers,
+    String? lastEliminatedPlayer,
+    bool? isGameOver,
+    String? winner,
+    int? discussionDuration,
+    List<String>? defensePlayers,
+    List<Map<String, dynamic>>? chatMessages,
+    int? currentClueIndex,
+    String? roomName,
+    String? pin,
+    bool? isFinalShowdown,
+    String? mafiosoStory,
+    String? lastEliminatedPlayerId,
+    String? phaseMessage,
+  }) {
+    return GameRoom(
+      id: id,
+      hostId: hostId,
+      players: players,
+      status: status ?? this.status,
+      currentPhase: currentPhase ?? this.currentPhase,
+      timeLeft: timeLeft ?? this.timeLeft,
+      caseTitle: caseTitle ?? this.caseTitle,
+      caseDescription: caseDescription ?? this.caseDescription,
+      clues: clues ?? this.clues,
+      currentRound: currentRound ?? this.currentRound,
+      eliminatedPlayers: eliminatedPlayers ?? this.eliminatedPlayers,
+      lastEliminatedPlayer: lastEliminatedPlayer ?? this.lastEliminatedPlayer,
+      isGameOver: isGameOver ?? this.isGameOver,
+      winner: winner ?? this.winner,
+      discussionDuration: discussionDuration ?? this.discussionDuration,
+      defensePlayers: defensePlayers ?? this.defensePlayers,
+      chatMessages: chatMessages ?? this.chatMessages,
+      currentClueIndex: currentClueIndex ?? this.currentClueIndex,
+      roomName: roomName ?? this.roomName,
+      pin: pin ?? this.pin,
+      isFinalShowdown: isFinalShowdown ?? this.isFinalShowdown,
+      mafiosoStory: mafiosoStory ?? this.mafiosoStory,
+      lastEliminatedPlayerId: lastEliminatedPlayerId ?? this.lastEliminatedPlayerId,
+      phaseMessage: phaseMessage ?? this.phaseMessage,
+    );
+  }
 }

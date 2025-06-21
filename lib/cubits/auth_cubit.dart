@@ -65,11 +65,22 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> signInWithEmailPassword(String email, String password) async {
     emit(AuthLoading());
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(email: email, password: password);
       
-      // Update last seen
-      if (_auth.currentUser != null) {
-        await _database.child('users').child(_auth.currentUser!.uid).update({
+      if (userCredential.user != null) {
+        // التحقق من حالة الحساب قبل السماح بالدخول
+        final snapshot = await _database.child('users').child(userCredential.user!.uid).get();
+        if (snapshot.exists) {
+          final userData = Map<String, dynamic>.from(snapshot.value as Map);
+          if (userData['isSuspended'] == true) {
+            await _auth.signOut(); // تسجيل الخروج فورًا
+            emit(AuthError('هذا الحساب معطل. يرجى مراجعة الإدارة.'));
+            return;
+          }
+        }
+        
+        // Update last seen
+        await _database.child('users').child(userCredential.user!.uid).update({
           'lastSeen': DateTime.now().toIso8601String(),
         });
       }

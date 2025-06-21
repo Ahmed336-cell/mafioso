@@ -8,6 +8,7 @@ import 'cubits/game_cubit.dart';
 import 'cubits/settings_cubit.dart';
 import 'views/main_menu.dart';
 import 'views/auth/auth_toggle.dart';
+import 'views/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,6 +56,9 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) {
+        if (state is AuthInitial || state is AuthLoading) {
+          return const SplashScreen();
+        }
         if (state is AuthSuccess) {
           return const MainMenuScreen();
         }

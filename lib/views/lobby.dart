@@ -43,20 +43,41 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
       final ref = FirebaseDatabase.instance.ref().child('cases');
       final snap = await ref.get();
 
-      if (snap.exists) {
-        final data = snap.value as Map<dynamic, dynamic>;
-        _cases = data.values.map((e) {
-          final caseMap = Map<String, dynamic>.from(e);
-          caseMap['clues'] = List<String>.from(caseMap['hints'] ?? []);
+      if (snap.exists && snap.value != null) {
+        final data = Map<String, dynamic>.from(snap.value as Map);
+        _cases = data.values.map((caseData) {
+          final caseMap = Map<String, dynamic>.from(caseData as Map);
+          
+          // Explicitly convert hints to List<String>
+          if (caseMap.containsKey('hints') && caseMap['hints'] != null) {
+            caseMap['hints'] = List<String>.from(caseMap['hints'].map((item) => item.toString()));
+          } else {
+            caseMap['hints'] = <String>[];
+          }
+
+          // Explicitly convert suspects to List<Map<String, dynamic>>
+          if (caseMap.containsKey('suspects') && caseMap['suspects'] != null) {
+            final suspectsList = List<dynamic>.from(caseMap['suspects']);
+            caseMap['suspects'] = suspectsList.map((suspect) {
+              return Map<String, dynamic>.from(suspect as Map);
+            }).toList();
+          } else {
+            caseMap['suspects'] = <Map<String, dynamic>>[];
+          }
+
           return caseMap;
         }).toList();
       } else {
-        // Initialize cases if they don't exist
+        // This part can be removed if you are managing cases from the admin panel
+        // and don't need to pre-populate them from the app.
+        // For now, let's keep it as a fallback.
         await _initializeCases();
-        await _fetchCasesFromDB(); // Fetch again after initialization
+        // Fetch again after initialization
+        await _fetchCasesFromDB(); 
       }
     } catch (e) {
       debugPrint('Error fetching cases: $e');
+      // Optionally show an error to the user
     } finally {
       if (mounted) {
         setState(() => _loadingCases = false);
@@ -707,50 +728,30 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
 
   Widget _buildStartGameButton(GameRoom room) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      padding: const EdgeInsets.all(16.0),
       child: ElevatedButton.icon(
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('بدء اللعبة',
-            style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Cairo')),
+        icon: const Icon(Icons.play_arrow_rounded),
+        label: const Text('ابدأ اللعبة'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.green[600],
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        onPressed: () => _handleGameStart(context, room),
+        onPressed: () {
+          if (_cases.isNotEmpty) {
+            context.read<GameCubit>().startGame(
+              discussionDuration: _selectedDiscussionDuration,
+              selectedCase: _cases[_selectedCaseIndex],
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('لا توجد قصص متاحة لبدء اللعبة.')),
+            );
+          }
+        },
       ),
-    );
-  }
-
-  void _handleGameStart(BuildContext context, GameRoom room) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('جاري توزيع الأدوار وبدء اللعبة...'),
-          ],
-        ),
-      ),
-    );
-
-    // Get the selected case data
-    final selectedCase = _cases[_selectedCaseIndex];
-    
-    context.read<GameCubit>().startGame(
-      discussionDuration: room.discussionDuration,
-      selectedCase: {
-        'title': selectedCase['title'] ?? '',
-        'description': selectedCase['description'] ?? '',
-        'clues': List<String>.from(selectedCase['hints'] ?? []),
-        'confession': selectedCase['confession'] ?? '',
-      },
     );
   }
 

@@ -210,10 +210,10 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
 
   Widget _buildWinnerCard() {
     bool isCivilianWin = widget.room.winner == 'مدنيين';
-    String title = isCivilianWin ? 'المدنيون انتصروا!' : 'المافيا انتصرت!';
+    String title = isCivilianWin ? 'المدنيون انتصروا!' : 'المافيوسو انتصر!';
     String subtitle = isCivilianWin
-        ? 'لقد نجحتم في كشف المافيا وتحقيق العدالة.'
-        : 'لقد نجحت المافيا في السيطرة على المدينة.';
+        ? 'لقد نجحتم في كشف المافيوسو وتحقيق العدالة.'
+        : 'لقد نجح المافيوسو في تنفيذ مهمته وخداعكم.';
     IconData icon = isCivilianWin ? Icons.shield : Icons.gavel;
     Color color = isCivilianWin ? Colors.green : Colors.red;
 
@@ -366,7 +366,7 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
                 const Icon(Icons.menu_book, color: Colors.red, size: 24),
                 const SizedBox(width: 8),
                 const Text(
-                  'اعترافات المافيا',
+                  'اعترافات المافيوسو',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -465,23 +465,23 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('تم حفظ القصة'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            icon: const Icon(Icons.share),
-            label: const Text('مشاركة'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-          ),
+          // ElevatedButton.icon(
+          //   onPressed: () {
+          //     ScaffoldMessenger.of(context).showSnackBar(
+          //       const SnackBar(
+          //         content: Text('تم حفظ القصة'),
+          //         backgroundColor: Colors.green,
+          //       ),
+          //     );
+          //   },
+          //   icon: const Icon(Icons.share),
+          //   label: const Text('مشاركة'),
+          //   style: ElevatedButton.styleFrom(
+          //     backgroundColor: Colors.teal,
+          //     foregroundColor: Colors.white,
+          //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          //   ),
+          // ),
         ],
       ),
     );

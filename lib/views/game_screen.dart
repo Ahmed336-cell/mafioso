@@ -341,10 +341,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                             ),
 
                             // Phase-specific content
-                            if (room.currentPhase == 'reveal') ...[
-                              const SizedBox(height: 24),
-                              _buildRevealPhase(room),
-                            ],
+                            _buildPhaseSpecificContent(context, room, currentPlayer),
+
+                            const SizedBox(height: 24),
 
                             // Players Section
                             _buildSectionHeader(
@@ -828,27 +827,27 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               ),
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.teal.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'علاقتك بالضحية: ${currentPlayer.relationshipToVictim}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'دفاعك: ${currentPlayer.alibi}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
+            // Container(
+            //   padding: const EdgeInsets.all(12),
+            //   decoration: BoxDecoration(
+            //     color: Colors.teal.withOpacity(0.2),
+            //     borderRadius: BorderRadius.circular(12),
+            //   ),
+            //   child: Column(
+            //     crossAxisAlignment: CrossAxisAlignment.start,
+            //     children: [
+            //       Text(
+            //         'علاقتك بالضحية: ${currentPlayer.relationshipToVictim}',
+            //         style: const TextStyle(color: Colors.white70),
+            //       ),
+            //       const SizedBox(height: 8),
+            //       Text(
+            //         'دفاعك: ${currentPlayer.alibi}',
+            //         style: const TextStyle(color: Colors.white70),
+            //       ),
+            //     ],
+            //   ),
+            // ),
           ],
         ],
       ),
@@ -872,70 +871,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final currentPlayer = room.players.firstWhere((p) => p.id == context.read<GameCubit>().currentPlayer!.id);
     final canVote = (currentPlayer.isAlive && !room.defensePlayers.contains(currentPlayer.id)) || room.isFinalShowdown;
     
-    // Check if current player is civilian and show warning if they're about to vote for wrong person
-    bool showWarning = false;
-    if (currentPlayer.role == 'مدني' && room.currentPhase == 'voting') {
-      showWarning = true;
-    }
-    
-    // Get wrong votes count for this round
-    int wrongVotesCount = room.wrongVotesByCivilians.length;
-    
     return Column(
       children: [
-        if (showWarning)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange, width: 2),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.warning, color: Colors.white, size: 16),
-                const SizedBox(width: 4),
-                const Text(
-                  'تأكد من اختيارك!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ).animate().shakeX(duration: 600.ms).then().shakeX(duration: 600.ms),
-        
-        // Show wrong votes count if any
-        if (wrongVotesCount > 0)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red, width: 2),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 16),
-                const SizedBox(width: 4),
-                Text(
-                  '$wrongVotesCount تصويت خاطئ',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ).animate().scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 800.ms).then().scale(begin: const Offset(1.1, 1.1), end: const Offset(1, 1), duration: 800.ms),
-        
         ElevatedButton.icon(
           icon: Icon(room.isFinalShowdown ? Icons.gavel : Icons.how_to_vote),
           label: Text(room.isFinalShowdown ? 'تصويت نهائي' : 'صوّت الآن'),
@@ -1003,25 +940,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-            // Show wrong votes statistics
-            if (room.wrongVotesByCivilians.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red),
-                ),
-                child: Text(
-                  '❌ ${room.wrongVotesByCivilians.length} تصويت خاطئ في هذه الجولة',
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
           ],
         ),
         content: SizedBox(
@@ -1031,33 +949,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             itemCount: voteTargets.length,
             itemBuilder: (context, index) {
               final player = voteTargets[index];
-              final isWrongVote = currentPlayer.role == 'مدني' && room.wrongVotesByCivilians.any((vote) => vote.targetId == player.id);
               
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: isWrongVote ? Colors.red : Colors.deepPurple,
+                  backgroundColor: Colors.deepPurple,
                   child: Text(player.avatar, style: const TextStyle(color: Colors.white)),
                 ),
                 title: Text(
                   player.name, 
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: isWrongVote ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
                 subtitle: player.characterName.isNotEmpty
                     ? Text(
                         player.characterName, 
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white70,
-                          fontWeight: isWrongVote ? FontWeight.bold : FontWeight.normal,
                         ),
-                      )
-                    : null,
-                trailing: currentPlayer.role == 'مدني' 
-                    ? Icon(
-                        isWrongVote ? Icons.error : Icons.help_outline, 
-                        color: isWrongVote ? Colors.red : Colors.orange,
                       )
                     : null,
                 onTap: () {
@@ -1066,7 +975,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   
                   // Show feedback for civilian voting
                   if (currentPlayer.role == 'مدني') {
-                    _showVoteFeedback(context, player, isWrongVote);
+                    _showVoteFeedback(context, player);
                   }
                 },
               );
@@ -1083,35 +992,26 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _showVoteFeedback(BuildContext context, Player votedPlayer, bool isWrongVote) {
+  void _showVoteFeedback(BuildContext context, Player votedPlayer) {
     // Show a brief feedback message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(
-              isWrongVote ? Icons.error : Icons.info_outline, 
+            const Icon(
+              Icons.info_outline, 
               color: Colors.white,
             ),
             const SizedBox(width: 8),
             Text(
-              isWrongVote 
-                ? '❌ تصويت خاطئ على ${votedPlayer.name}'
-                : 'تم التصويت على ${votedPlayer.name}',
+              'تم التصويت على ${votedPlayer.name}',
             ),
           ],
         ),
-        backgroundColor: isWrongVote ? Colors.red[700] : Colors.blue[700],
+        backgroundColor: Colors.blue[700],
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        action: isWrongVote ? SnackBarAction(
-          label: 'تأكد',
-          textColor: Colors.white,
-          onPressed: () {
-            // Could show more detailed feedback here
-          },
-        ) : null,
       ),
     );
   }
@@ -1236,164 +1136,167 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       ),
       builder: (context) {
         TextEditingController msgController = TextEditingController();
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          builder: (context, _) {
-            return Column(
-              children: [
-                Container(
-                  width: 60,
-                  height: 6,
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(3),
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.7,
+            minChildSize: 0.4,
+            maxChildSize: 0.95,
+            builder: (context, _) {
+              return Column(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 6,
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
                   ),
-                ),
-                const Text(
-                  'محادثة النقاش',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepPurple),
-                ),
-                const Divider(),
-                Expanded(
-                  child: StreamBuilder<DatabaseEvent>(
-                    stream: chatRef.orderByChild('timestamp').onValue,
-                    builder: (context, snapshot) {
-                      List<Map<String, dynamic>> messages = [];
-                      if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-                        final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-                        messages = data.entries.map((e) => Map<String, dynamic>.from(e.value)).toList();
-                        messages.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
-                      }
-                      return ListView.builder(
-                        controller: scrollController,
-                        reverse: true,
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = messages[index];
-                          final isMe = msg['senderId'] == currentPlayer.id;
-                          return AnimatedOpacity(
-                            opacity: 1.0,
-                            duration: const Duration(milliseconds: 400),
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                              child: Row(
-                                mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  if (!isMe) ...[
-                                    CircleAvatar(
-                                      backgroundColor: Colors.deepPurple[100],
-                                      child: Text(msg['avatar'] ?? '', style: const TextStyle(fontSize: 20)),
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  Flexible(
-                                    child: Column(
-                                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          msg['senderName'] ?? '',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: isMe ? Colors.blue[700] : Colors.grey[700],
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                          margin: const EdgeInsets.only(top: 2),
-                                          decoration: BoxDecoration(
-                                            color: isMe ? Colors.blue[400] : Colors.grey[300],
-                                            borderRadius: BorderRadius.only(
-                                              topLeft: const Radius.circular(18),
-                                              topRight: const Radius.circular(18),
-                                              bottomLeft: Radius.circular(isMe ? 18 : 4),
-                                              bottomRight: Radius.circular(isMe ? 4 : 18),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            msg['text'] ?? '',
+                  const Text(
+                    'محادثة النقاش',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: StreamBuilder<DatabaseEvent>(
+                      stream: chatRef.orderByChild('timestamp').onValue,
+                      builder: (context, snapshot) {
+                        List<Map<String, dynamic>> messages = [];
+                        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                          final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+                          messages = data.entries.map((e) => Map<String, dynamic>.from(e.value)).toList();
+                          messages.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
+                        }
+                        return ListView.builder(
+                          controller: scrollController,
+                          reverse: true,
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            final msg = messages[index];
+                            final isMe = msg['senderId'] == currentPlayer.id;
+                            return AnimatedOpacity(
+                              opacity: 1.0,
+                              duration: const Duration(milliseconds: 400),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                                child: Row(
+                                  mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    if (!isMe) ...[
+                                      CircleAvatar(
+                                        backgroundColor: Colors.deepPurple[100],
+                                        child: Text(msg['avatar'] ?? '', style: const TextStyle(fontSize: 20)),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    Flexible(
+                                      child: Column(
+                                        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            msg['senderName'] ?? '',
                                             style: TextStyle(
-                                              color: isMe ? Colors.white : Colors.black87,
-                                              fontSize: 16,
+                                              fontSize: 12,
+                                              color: isMe ? Colors.blue[700] : Colors.grey[700],
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        ),
-                                        Text(
-                                          _formatTime(DateTime.tryParse(msg['timestamp'] ?? '') ?? DateTime.now()),
-                                          style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                        ),
-                                      ],
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                            margin: const EdgeInsets.only(top: 2),
+                                            decoration: BoxDecoration(
+                                              color: isMe ? Colors.blue[400] : Colors.grey[300],
+                                              borderRadius: BorderRadius.only(
+                                                topLeft: const Radius.circular(18),
+                                                topRight: const Radius.circular(18),
+                                                bottomLeft: Radius.circular(isMe ? 18 : 4),
+                                                bottomRight: Radius.circular(isMe ? 4 : 18),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              msg['text'] ?? '',
+                                              style: TextStyle(
+                                                color: isMe ? Colors.white : Colors.black87,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            _formatTime(DateTime.tryParse(msg['timestamp'] ?? '') ?? DateTime.now()),
+                                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  if (isMe) ...[
-                                    const SizedBox(width: 6),
-                                    CircleAvatar(
-                                      backgroundColor: Colors.blue[100],
-                                      child: Text(msg['avatar'] ?? '', style: const TextStyle(fontSize: 20)),
-                                    ),
+                                    if (isMe) ...[
+                                      const SizedBox(width: 6),
+                                      CircleAvatar(
+                                        backgroundColor: Colors.blue[100],
+                                        child: Text(msg['avatar'] ?? '', style: const TextStyle(fontSize: 20)),
+                                      ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      );
-                    },
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: msgController,
-                              enabled: isDiscussion,
-                              decoration: InputDecoration(
-                                hintText: isDiscussion ? 'اكتب رسالتك...' : 'الدردشة متاحة فقط أثناء النقاش',
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: msgController,
+                                enabled: isDiscussion,
+                                decoration: InputDecoration(
+                                  hintText: isDiscussion ? 'اكتب رسالتك...' : 'الدردشة متاحة فقط أثناء النقاش',
+                                ),
                               ),
                             ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.send, color: Colors.deepPurple),
-                            onPressed: isDiscussion
-                                ? () {
-                                    final text = msgController.text.trim();
-                                    if (text.isNotEmpty) {
-                                      context.read<GameCubit>().sendChatMessage(
-                                        text,
-                                        senderId: currentPlayer.id,
-                                        senderName: currentPlayer.name,
-                                        avatar: currentPlayer.avatar,
-                                      );
-                                      msgController.clear();
+                            IconButton(
+                              icon: const Icon(Icons.send, color: Colors.deepPurple),
+                              onPressed: isDiscussion
+                                  ? () {
+                                      final text = msgController.text.trim();
+                                      if (text.isNotEmpty) {
+                                        context.read<GameCubit>().sendChatMessage(
+                                          text,
+                                          senderId: currentPlayer.id,
+                                          senderName: currentPlayer.name,
+                                          avatar: currentPlayer.avatar,
+                                        );
+                                        msgController.clear();
+                                      }
                                     }
-                                  }
-                                : null,
-                          )
-                        ],
-                      ),
-                      if (!isDiscussion)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            'الدردشة متاحة فقط أثناء مرحلة النقاش',
-                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                          ),
+                                  : null,
+                            )
+                          ],
                         ),
-                    ],
-                  ),
-                )
-              ],
-            );
-          },
+                        if (!isDiscussion)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              'الدردشة متاحة فقط أثناء مرحلة النقاش',
+                              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                ],
+              );
+            },
+          ),
         );
       },
     );
@@ -1408,16 +1311,110 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
   }
 
+  Widget _buildPhaseSpecificContent(BuildContext context, GameRoom room, Player? currentPlayer) {
+    if (currentPlayer == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    switch (room.currentPhase) {
+      case 'discussion':
+        // For discussion, we might show chat prompts or objectives.
+        // For now, we show nothing extra, the main view is enough.
+        return const SizedBox.shrink(); 
+      
+      case 'voting':
+        return _buildVotingContent(room, currentPlayer);
+
+      case 'reveal':
+        return _buildRevealPhase(room);
+
+      case 'defense':
+        return _buildDefenseView(room, currentPlayer);
+      
+      case 'final_voting':
+        return _buildFinalVotingView(room, currentPlayer);
+
+      case 'ended':
+        // The result dialog is handled by the listener, so nothing to show here.
+        return const SizedBox.shrink();
+
+      default:
+        return Center(child: Text('مرحلة غير معروفة: ${room.currentPhase}', style: const TextStyle(color: Colors.white)));
+    }
+  }
+
+  Widget _buildVotingContent(GameRoom room, Player currentPlayer) {
+    final hasVoted = currentPlayer.hasVoted;
+    final canVote = currentPlayer.isAlive;
+
+    if (hasVoted) {
+      return const Text('لقد قمت بالتصويت. في انتظار بقية اللاعبين...', style: TextStyle(color: Colors.white, fontSize: 18), textAlign: TextAlign.center,);
+    }
+    if (!canVote) {
+      return const Text('لا يمكنك التصويت الآن.', style: TextStyle(color: Colors.grey, fontSize: 18), textAlign: TextAlign.center,);
+    }
+    return const Text('استخدم زر "صوت الآن" في الأسفل لاختيار لاعب.', style: TextStyle(color: Colors.amberAccent, fontSize: 16), textAlign: TextAlign.center,);
+  }
+
+  Widget _buildFinalVotingView(GameRoom room, Player currentPlayer) {
+    final defenders = room.players.where((p) => p.isAlive && p.id != room.hostId).toList();
+    final isDefender = defenders.any((d) => d.id == currentPlayer.id);
+
+    if (currentPlayer.hasVoted) {
+      return const Text('شكراً لك، تم تسجيل صوتك.', style: TextStyle(color: Colors.white, fontSize: 18), textAlign: TextAlign.center);
+    }
+    
+    if(isDefender) {
+       return const Text('أنت في المواجهة، لا يمكنك التصويت.', style: TextStyle(color: Colors.white70, fontSize: 16), textAlign: TextAlign.center);
+    }
+
+    return const Text('الجميع يصوت الآن! استخدم زر "تصويت نهائي" لاختيار من تظنه المافيا.', style: TextStyle(color: Colors.redAccent, fontSize: 16), textAlign: TextAlign.center,);
+  }
+  
+  Widget _buildDefenseView(GameRoom room, Player currentPlayer) {
+    return Column(
+      children: [
+        Text(
+          'المواجهة الأخيرة',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.amberAccent),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          room.phaseMessage ?? 'يدافع كل لاعب عن نفسه الآن!',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+        ),
+         const SizedBox(height: 30),
+        const Text(
+          'بعد انتهاء الوقت، سيصوت الجميع لتحديد الفائز!',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+        ),
+      ],
+    );
+  }
+
   Widget _buildRevealPhase(GameRoom room) {
-    final eliminatedPlayer = room.lastEliminatedPlayer != null
-        ? room.players.firstWhere((p) => p.id == room.lastEliminatedPlayer)
-        : null;
+    if (room.lastEliminatedPlayerId == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          room.phaseMessage ?? 'لم يتم إقصاء أحد.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
 
-    if (eliminatedPlayer == null) return const SizedBox.shrink();
+    final eliminatedPlayer = room.players.firstWhere(
+      (p) => p.id == room.lastEliminatedPlayerId,
+      orElse: () => Player(id: '', name: 'لاعب غير معروف', role: 'غير معروف', avatar: '?'),
+    );
 
-    // Check if this was a wrong vote (eliminated player was civilian)
     bool wasWrongVote = eliminatedPlayer.role == 'مدني';
-    int wrongVotesCount = room.wrongVotesByCivilians.length;
 
     return Column(
       children: [
@@ -1456,15 +1453,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     fontSize: 14,
                   ),
                 ),
-                if (wrongVotesCount > 0)
-                  Text(
-                    '$wrongVotesCount تصويت خاطئ في هذه الجولة',
-                    style: TextStyle(
-                      color: Colors.red[300],
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
               ],
             ),
           ).animate().shakeX(duration: 600.ms).then().shakeX(duration: 600.ms),
@@ -1983,7 +1971,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             text,
             key: ValueKey<String>(text),
             style: TextStyle(
-              fontSize: 150,
+              fontSize: 85,
               fontWeight: FontWeight.bold,
               color: Colors.amber,
               shadows: [

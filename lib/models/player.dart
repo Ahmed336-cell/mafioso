@@ -6,6 +6,7 @@ class Player {
   bool isAlive;
   int votes;
   String characterName;
+  String characterJob;
   String characterDescription;
   String relationshipToVictim;
   String alibi;
@@ -19,6 +20,7 @@ class Player {
     this.isAlive = true,
     this.votes = 0,
     this.characterName = '',
+    this.characterJob = '',
     this.characterDescription = '',
     this.relationshipToVictim = '',
     this.alibi = '',
@@ -34,6 +36,7 @@ class Player {
       'isAlive': isAlive,
       'votes': votes,
       'characterName': characterName,
+      'characterJob': characterJob,
       'characterDescription': characterDescription,
       'relationshipToVictim': relationshipToVictim,
       'alibi': alibi,
@@ -50,6 +53,7 @@ class Player {
       isAlive: json['isAlive'] as bool? ?? true,
       votes: json['votes'] as int? ?? 0,
       characterName: json['characterName'] as String? ?? '',
+      characterJob: json['characterJob'] as String? ?? '',
       characterDescription: json['characterDescription'] as String? ?? '',
       relationshipToVictim: json['relationshipToVictim'] as String? ?? '',
       alibi: json['alibi'] as String? ?? '',
@@ -65,6 +69,7 @@ class Player {
     bool? isAlive,
     int? votes,
     String? characterName,
+    String? characterJob,
     String? characterDescription,
     String? relationshipToVictim,
     String? alibi,
@@ -78,6 +83,7 @@ class Player {
       isAlive: isAlive ?? this.isAlive,
       votes: votes ?? this.votes,
       characterName: characterName ?? this.characterName,
+      characterJob: characterJob ?? this.characterJob,
       characterDescription: characterDescription ?? this.characterDescription,
       relationshipToVictim: relationshipToVictim ?? this.relationshipToVictim,
       alibi: alibi ?? this.alibi,

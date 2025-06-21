@@ -9,6 +9,7 @@ import '../models/player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'settings_cubit.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 part 'game_state.dart';
 
@@ -19,6 +20,7 @@ class GameCubit extends Cubit<GameState> {
   Player? currentPlayer;
   StreamSubscription? _roomSubscription;
   Timer? _gameTimer;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   GameCubit({required this.settingsCubit}) : super(GameInitial());
 
@@ -46,7 +48,6 @@ class GameCubit extends Cubit<GameState> {
         caseTitle: '',
         caseDescription: '',
         clues: [],
-        votes: {},
         eliminatedPlayers: [],
         defensePlayers: [],
         chatMessages: [],
@@ -105,27 +106,75 @@ class GameCubit extends Cubit<GameState> {
 
   Future<void> startGame({int discussionDuration = 300, required Map<String, dynamic> selectedCase}) async {
     if (currentRoom == null || currentPlayer?.id != currentRoom?.hostId) return;
-    if (currentRoom!.players.length < 3) {
-      emit(GameError('يجب أن يكون هناك لاعبين اثنين على الأقل (بالإضافة للمضيف)'));
-      return;
-    }
 
+    print('Starting game with case: ${selectedCase['title']}');
+    
     try {
+      final List<dynamic> suspectsFromCase = List<dynamic>.from(selectedCase['suspects'] ?? []);
       List<Player> playingPlayers = currentRoom!.players.where((p) => p.id != currentRoom!.hostId).toList();
-      int mafiosoCount = (playingPlayers.length / 4).ceil().clamp(1, playingPlayers.length - 1);
+      print('Found ${playingPlayers.length} playing players.');
 
-      playingPlayers.shuffle();
-      for (int i = 0; i < mafiosoCount; i++) {
-        playingPlayers[i] = playingPlayers[i].copyWith(role: 'مافيوسو');
-      }
-      for (int i = mafiosoCount; i < playingPlayers.length; i++) {
-        playingPlayers[i] = playingPlayers[i].copyWith(role: 'مدني');
+      if (playingPlayers.isEmpty) {
+        emit(GameError('لا يمكن بدء اللعبة بدون لاعبين.'));
+        return;
       }
 
-      final assignedPlayingPlayers = _assignCharacterInfo(playingPlayers);
+      final mafiosoSuspects = suspectsFromCase.where((s) => s['in_game_role'] == 'مافيوسو').toList();
+      final civilianSuspects = suspectsFromCase.where((s) => s['in_game_role'] == 'المدني').toList();
+      print('Case has ${mafiosoSuspects.length} mafioso and ${civilianSuspects.length} civilians.');
 
-      List<Player> finalPlayers = [];
+      if (mafiosoSuspects.isEmpty) {
+        emit(GameError('القصة المختارة يجب أن تحتوي على شخصية مافيوسو واحدة على الأقل.'));
+        return;
+      }
+
+      if (playingPlayers.length < mafiosoSuspects.length) {
+        emit(GameError('عدد اللاعبين (${playingPlayers.length}) أقل من عدد شخصيات المافيا المحددة في القصة (${mafiosoSuspects.length}).'));
+        return;
+      }
       
+      playingPlayers.shuffle();
+      List<Player> assignedPlayers = [];
+
+      print('Assigning ${mafiosoSuspects.length} mafioso roles...');
+      for (int i = 0; i < mafiosoSuspects.length; i++) {
+        final player = playingPlayers[i];
+        final suspect = mafiosoSuspects[i];
+        assignedPlayers.add(player.copyWith(
+          role: 'مافيوسو',
+          characterName: suspect['name'],
+          characterJob: suspect['job'],
+          characterDescription: suspect['description'],
+        ));
+      }
+      print('Mafioso roles assigned.');
+
+      List<Player> remainingPlayers = playingPlayers.sublist(mafiosoSuspects.length);
+      if (remainingPlayers.isNotEmpty) {
+        print('Assigning civilian roles to ${remainingPlayers.length} players...');
+        List<Map<String, dynamic>> civilianPool = List<Map<String, dynamic>>.from(civilianSuspects);
+        
+        int neededFillers = remainingPlayers.length - civilianPool.length;
+        if (neededFillers > 0) {
+          print('Not enough civilians in case, adding $neededFillers generic characters.');
+          civilianPool.addAll(_getGenericCharacters(neededFillers));
+        }
+        civilianPool.shuffle();
+
+        for (int i = 0; i < remainingPlayers.length; i++) {
+          final player = remainingPlayers[i];
+          final civilianCharacter = civilianPool[i];
+          assignedPlayers.add(player.copyWith(
+            role: 'مدني',
+            characterName: civilianCharacter['name'],
+            characterJob: civilianCharacter['job'],
+            characterDescription: civilianCharacter['description'],
+          ));
+        }
+        print('Civilian roles assigned.');
+      }
+      
+      List<Player> finalPlayers = [];
       final hostPlayer = currentRoom!.players.firstWhere((p) => p.id == currentRoom!.hostId);
       finalPlayers.add(hostPlayer.copyWith(
         role: 'مضيف',
@@ -134,8 +183,10 @@ class GameCubit extends Cubit<GameState> {
         characterDescription: 'مدير اللعبة والمضيف',
       ));
       
-      finalPlayers.addAll(assignedPlayingPlayers);
+      assignedPlayers.shuffle();
+      finalPlayers.addAll(assignedPlayers);
 
+      print('Updating game room in Firebase...');
       await _database.child('rooms').child(currentRoom!.id).update({
         'status': 'playing',
         'currentPhase': 'discussion',
@@ -145,59 +196,114 @@ class GameCubit extends Cubit<GameState> {
         'currentRound': 1,
         'caseTitle': selectedCase['title'],
         'caseDescription': selectedCase['description'],
-        'clues': List<String>.from(selectedCase['clues'] ?? []),
+        'clues': List<String>.from(selectedCase['hints'] ?? []),
         'mafiosoStory': selectedCase['confession'] ?? 'لم يتم الكشف عن القصة...',
         'currentClueIndex': 0,
       });
 
+      print('Game started successfully, starting timer.');
       _startGameTimer();
-    } catch (e) {
-      emit(GameError('حدث خطأ أثناء بدء اللعبة'));
+    } catch (e, s) {
+      print('Error in startGame: $e');
+      print('Stacktrace: $s');
+      emit(GameError('حدث خطأ فني أثناء بدء اللعبة: $e'));
     }
+  }
+
+  List<Map<String, dynamic>> _getGenericCharacters(int count) {
+    final List<Map<String, dynamic>> allCharacters = [
+      {'name': 'شاهد عيان', 'job': 'متفرّج', 'description': 'شخص كان متواجدًا بالصدفة بالقرب من مكان الحادث ورأى شيئًا قد يكون مهمًا.'},
+      {'name': 'جار الضحية', 'job': 'جار', 'description': 'يسكن بالقرب من الضحية، وقد يكون سمع أو رأى تحركات غريبة.'},
+      {'name': 'المحقق المناوب', 'job': 'محقق', 'description': 'محقق شاب وصل أولاً إلى مسرح الجريمة ويحاول إثبات نفسه.'},
+      {'name': 'طبيب شرعي', 'job': 'طبيب', 'description': 'الطبيب المسؤول عن فحص الجثة وتحديد سبب الوفاة.'},
+      {'name': 'صحفي فضولي', 'job': 'صحفي', 'description': 'صحفي يسعى للحصول على سبق صحفي حول القضية، وقد يكشف أسرارًا لا يعرفها أحد.'},
+      {'name': 'عامل النظافة', 'job': 'عامل', 'description': 'كان يقوم بعمله كالمعتاد، لكنه لاحظ تفاصيل لم يلاحظها الآخرون.'},
+      {'name': 'ساعي البريد', 'job': 'موظف بريد', 'description': 'شخصية روتينية، لكنه يعرف حركة الناس في المنطقة جيدًا.'},
+      {'name': 'صديق قديم', 'job': 'صديق', 'description': 'صديق لم يرَ الضحية منذ فترة طويلة، وعاد للظهور بشكل مفاجئ.'},
+      {'name': 'رجل أعمال منافس', 'job': 'رجل أعمال', 'description': 'منافس للضحية في العمل، وقد يكون لديه دافع للتخلص منه.'},
+      {'name': 'خبير أمني', 'job': 'خبير', 'description': 'تم استدعاؤه لتحليل الجانب التقني للجريمة، مثل الكاميرات أو الأقفال.'},
+      {'name': 'موظف أرشيف', 'job': 'موظف', 'description': 'لديه إمكانية الوصول إلى سجلات قديمة قد تكشف عن دوافع خفية.'},
+      {'name': 'سائق أجرة', 'job': 'سائق', 'description': 'أوصل أحد المشتبه بهم من أو إلى مكان قريب من مسرح الجريمة.'},
+      {'name': 'نادل في مقهى قريب', 'job': 'نادل', 'description': 'سمع محادثة جانبية بين بعض المشتبه بهم قبل وقوع الجريمة.'},
+      {'name': 'متدرب جديد', 'job': 'متدرب', 'description': 'شخصية جديدة في مكان العمل، متحمسة ولكنها قد تكون ساذجة أو تخفي شيئًا ما.'},
+      {'name': 'حارس أمن المبنى المجاور', 'job': 'حارس أمن', 'description': 'لم يكن في الخدمة المباشرة، لكن كاميراته قد تكون التقطت شيئًا مفيدًا.'},
+      {'name': 'متسوق في المتجر القريب', 'job': 'متسوق', 'description': 'رأى أحد المشتبه بهم يشتري أداة يمكن استخدامها في الجريمة.'},
+      {'name': 'فني صيانة', 'job': 'فني', 'description': 'قام بإصلاحات في مكان الجريمة مؤخرًا ولديه معرفة بالمكان.'},
+      {'name': 'مرشد سياحي', 'job': 'مرشد', 'description': 'كان مع مجموعة سياحية بالقرب من المكان ولاحظ شيئًا خارجًا عن المألوف.'},
+      {'name': 'بائع متجول', 'job': 'بائع', 'description': 'يتواجد في نفس الشارع يوميًا ويعرف كل الوجوه المألوفة والغريبة.'},
+      {'name': 'أحد أقارب الضحية', 'job': 'قريب', 'description': 'لم يتم ذكره في التحقيقات الأولية ولكن لديه دافع قوي متعلق بالميراث.'},
+    ];
+
+    allCharacters.shuffle();
+    return allCharacters.take(count).toList();
   }
 
   Future<void> vote(String targetPlayerId) async {
     if (currentRoom == null || currentPlayer == null) return;
-    if (currentRoom!.status != 'playing') return;
-    if (currentRoom!.currentPhase != 'voting') return;
     
-    // Prevent host from voting
+    final currentPhase = currentRoom!.currentPhase;
+    final isFinalVote = currentPhase == 'final_voting';
+
+    // Check general conditions
+    if (currentRoom!.status != 'playing' || (currentPhase != 'voting' && !isFinalVote)) {
+      return;
+    }
+
+    // Check player-specific conditions
     if (currentPlayer!.role == 'مضيف') {
       emit(GameError('المضيف لا يمكنه التصويت'));
       return;
     }
+    // Allow dead players to vote ONLY in the final voting phase
+    if (!currentPlayer!.isAlive && !isFinalVote) {
+      emit(GameError('لا يمكن للاعبين الموتى التصويت'));
+      return;
+    }
+    if (currentPlayer!.hasVoted) {
+      emit(GameError('لقد قمت بالتصويت بالفعل'));
+      return;
+    }
 
     try {
-      debugPrint('vote: player ${currentPlayer!.name} voting for $targetPlayerId');
+      final playerRef = _database.child('rooms').child(currentRoom!.id).child('players');
       
-      // Check if this is a wrong vote by a civilian
-      bool isWrongVote = false;
-      if (currentPlayer!.role == 'مدني') {
-        // Find the target player in the current room
-        final targetPlayer = currentRoom!.players.firstWhere(
-          (p) => p.id == targetPlayerId,
-          orElse: () => Player(id: '', name: '', role: 'مدني', avatar: ''),
-        );
-        // If target player is also civilian, this is a wrong vote
-        if (targetPlayer.role == 'مدني') {
-          isWrongVote = true;
-        }
+      // Find the index of the player who is voting and the target player
+      final voterIndex = currentRoom!.players.indexWhere((p) => p.id == currentPlayer!.id);
+      final targetIndex = currentRoom!.players.indexWhere((p) => p.id == targetPlayerId);
+
+      if (voterIndex == -1 || targetIndex == -1) {
+        emit(GameError('لم يتم العثور على اللاعب'));
+        return;
       }
 
-      final voteData = {
-        'targetId': targetPlayerId,
-        'isWrongVote': isWrongVote,
-        'voterRole': currentPlayer!.role,
-        'timestamp': ServerValue.timestamp,
-      };
-      
-      debugPrint('vote: vote data: $voteData');
-      
-      await _database.child('rooms').child(currentRoom!.id)
-          .child('votes').child(currentPlayer!.id)
-          .set(voteData);
+      // Atomically update both players' data using a transaction
+      await playerRef.runTransaction((Object? players) {
+        // Firebase returns the data as a List<dynamic>
+        var playersList = (players as List?)?.map((p) => Map<String, dynamic>.from(p as Map)).toList();
+
+        if (playersList != null) {
+          // Ensure we don't process a stale vote
+          if (playersList[voterIndex]['hasVoted'] == true) {
+            // This user has already voted, abort the transaction.
+            return Transaction.abort();
+          }
+
+          // Increment votes for the target player
+          int currentVotes = (playersList[targetIndex]['votes'] as int?) ?? 0;
+          playersList[targetIndex]['votes'] = currentVotes + 1;
+
+          // Mark the current player as having voted
+          playersList[voterIndex]['hasVoted'] = true;
           
-      debugPrint('vote: vote saved successfully');
+          return Transaction.success(playersList);
+        }
+        
+        // If players list is null, abort.
+        return Transaction.abort();
+      });
+      
+      debugPrint('Vote cast by ${currentPlayer!.name} for player ID $targetPlayerId');
+
     } catch (e) {
       debugPrint('vote error: $e');
       emit(GameError('حدث خطأ أثناء التصويت: $e'));
@@ -207,8 +313,17 @@ class GameCubit extends Cubit<GameState> {
   Future<void> endDiscussionPhase() async {
     if (currentRoom == null) return;
     try {
-      debugPrint('endDiscussionPhase: setting phase to voting');
+      // Reset votes and hasVoted status for all players before moving to the voting phase
+      List<Map<String, dynamic>> updatedPlayers = currentRoom!.players.map((p) {
+        var playerJson = p.toJson();
+        playerJson['votes'] = 0;
+        playerJson['hasVoted'] = false;
+        return playerJson;
+      }).toList();
+
+      debugPrint('endDiscussionPhase: setting phase to voting and resetting votes');
       await _database.child('rooms').child(currentRoom!.id).update({
+        'players': updatedPlayers,
         'currentPhase': 'voting',
         'timeLeft': 60, // 1 minute for voting
       });
@@ -219,209 +334,209 @@ class GameCubit extends Cubit<GameState> {
 
   Future<void> endVotingPhase() async {
     if (currentRoom == null) return;
+    _gameTimer?.cancel();
+
     try {
-      debugPrint('endVotingPhase: counting votes and updating phase');
-      
-      // Get playing players (excluding host)
-      final playingPlayers = currentRoom!.players.where((p) => p.role != 'مضيف' && p.isAlive).toList();
-      
-      debugPrint('endVotingPhase: playing players count: ${playingPlayers.length}');
-      debugPrint('endVotingPhase: total votes count: ${currentRoom!.votes.length}');
-      
-      // Count votes and eliminate player (excluding host votes)
-      Map<String, int> voteCount = {};
-      currentRoom!.votes.forEach((voterId, voteData) {
-        // Skip host votes
-        final voter = currentRoom!.players.firstWhere(
-          (p) => p.id == voterId,
-          orElse: () => Player(id: '', name: '', role: 'مدني', avatar: ''),
-        );
-        if (voter.role == 'مضيف') return;
-        
-        String targetId;
-        if (voteData is String) {
-          // Old format
-          targetId = voteData;
-        } else if (voteData is Map<String, dynamic>) {
-          // New format
-          targetId = voteData['targetId'] as String;
-        } else {
-          debugPrint('endVotingPhase: invalid vote data format for voter $voterId');
-          return; // Skip invalid vote data
-        }
-        voteCount[targetId] = (voteCount[targetId] ?? 0) + 1;
-      });
+      final roomSnapshot = await _database.child('rooms').child(currentRoom!.id).get();
+      if (!roomSnapshot.exists) return;
+      final latestRoom = GameRoom.fromJson(Map<String, dynamic>.from(roomSnapshot.value as Map));
 
-      debugPrint('endVotingPhase: valid votes count: ${voteCount.length}');
-
-      String? eliminatedPlayerId;
+      Player? playerToEliminate;
       int maxVotes = 0;
-      List<String> topPlayers = [];
       
-      voteCount.forEach((playerId, votes) {
-        if (votes > maxVotes) {
-          maxVotes = votes;
-          topPlayers = [playerId];
-        } else if (votes == maxVotes) {
-          topPlayers.add(playerId);
+      List<Player> livingPlayers = latestRoom.players.where((p) => p.isAlive && p.id != latestRoom.hostId).toList();
+
+      for (var player in livingPlayers) {
+        if (player.votes > maxVotes) {
+          maxVotes = player.votes;
+          playerToEliminate = player;
+        } else if (player.votes == maxVotes && player.votes > 0) {
+          playerToEliminate = null; // Tie, nobody gets eliminated
         }
+      }
+
+      String message;
+      String? eliminatedPlayerId;
+
+      if (playerToEliminate != null) {
+        eliminatedPlayerId = playerToEliminate.id;
+        message = 'تم إعدام ${playerToEliminate.characterName} بناءً على تصويت الأغلبية!';
+        final updatedPlayers = latestRoom.players.map((p) {
+          if (p.id == playerToEliminate!.id) {
+            return p.copyWith(isAlive: false);
+          }
+          return p;
+        }).toList();
+        
+        await _database.child('rooms').child(currentRoom!.id).update({
+          'players': updatedPlayers.map((p) => p.toJson()).toList(),
+        });
+        
+        livingPlayers = updatedPlayers.where((p) => p.isAlive && p.id != latestRoom.hostId).toList();
+
+      } else {
+        message = 'لم يتم التوصل إلى قرار حاسم. لا أحد سيُعدم اليوم.';
+      }
+      
+      // Check for win/end conditions immediately after elimination
+      bool gameHasEnded = await _checkWinConditions(livingPlayers, message);
+      if (gameHasEnded) return;
+
+      // If game hasn't ended, move to the reveal phase
+      await _database.child('rooms').child(currentRoom!.id).update({
+        'currentPhase': 'reveal',
+        'timeLeft': 15, // 15 seconds for reveal phase
+        'phaseMessage': message,
+        'lastEliminatedPlayerId': eliminatedPlayerId,
       });
 
-      // إذا لم يكن هناك أي تصويت، اختر لاعب عشوائي للإقصاء
-      if (voteCount.isEmpty && playingPlayers.isNotEmpty) {
-        debugPrint('endVotingPhase: no votes cast, randomly eliminating a player');
-        final random = Random();
-        final randomPlayer = playingPlayers[random.nextInt(playingPlayers.length)];
-        eliminatedPlayerId = randomPlayer.id;
-        topPlayers = [randomPlayer.id];
-        maxVotes = 1;
-      }
+      _startGameTimer();
 
-      // إذا كان هناك تعادل
-      if (topPlayers.length > 1) {
-        debugPrint('endVotingPhase: tie detected, moving to defense phase');
-        await _database.child('rooms').child(currentRoom!.id).update({
-          'currentPhase': 'defense',
-          'timeLeft': 30, // 30 ثانية للدفاع
-          'defensePlayers': topPlayers,
-        });
-        return;
-      }
-
-      // إذا لم يكن هناك تعادل
-      eliminatedPlayerId = topPlayers.isNotEmpty ? topPlayers.first : null;
-
-      if (eliminatedPlayerId != null) {
-        debugPrint('endVotingPhase: eliminating player $eliminatedPlayerId');
-        
-        List<Player> updatedPlayers = currentRoom!.players.map((player) {
-          if (player.id == eliminatedPlayerId) {
-            return player.copyWith(isAlive: false);
-          }
-          return player;
-        }).toList();
-
-        // Check if game is over (excluding host from count)
-        bool gameOver = false;
-        String? winner;
-
-        final alivePlayers = updatedPlayers.where((p) => p.isAlive && p.role != 'مضيف').toList();
-        final aliveMafioso = alivePlayers.where((p) => p.role == 'مافيوسو').length;
-        final aliveCivilians = alivePlayers.where((p) => p.role == 'مدني').length;
-
-        debugPrint('endVotingPhase: alive players - mafioso: $aliveMafioso, civilians: $aliveCivilians');
-
-        // وضع المواجهة النهائية: لاعبان متبقيان، أحدهما مافيا
-        if (alivePlayers.length == 2 && aliveMafioso == 1) {
-          debugPrint('endVotingPhase: Final showdown triggered');
-          await _database.child('rooms').child(currentRoom!.id).update({
-            'currentPhase': 'voting',
-            'timeLeft': 60,
-            'players': updatedPlayers.map((p) => p.toJson()).toList(),
-            'lastEliminatedPlayer': eliminatedPlayerId,
-            'defensePlayers': alivePlayers.map((p) => p.id).toList(),
-            'isFinalShowdown': true,
-            'votes': {},
-          });
-          return;
-        }
-        
-        if (aliveMafioso == 0) {
-          gameOver = true;
-          winner = 'مدنيين';
-        } else if (aliveMafioso >= aliveCivilians) {
-          gameOver = true;
-          winner = 'مافيوسو';
-        }
-
-        // Count wrong votes by civilians for this round (excluding host)
-        int wrongVotesCount = 0;
-        currentRoom!.votes.forEach((voterId, voteData) {
-          final voter = currentRoom!.players.firstWhere(
-            (p) => p.id == voterId,
-            orElse: () => Player(id: '', name: '', role: 'مدني', avatar: ''),
-          );
-          if (voter.role == 'مضيف') return;
-          
-          if (voteData is Map<String, dynamic>) {
-            final isWrongVote = voteData['isWrongVote'] as bool? ?? false;
-            final voterRole = voteData['voterRole'] as String? ?? 'مدني';
-            if (isWrongVote && voterRole == 'مدني') {
-              wrongVotesCount++;
-            }
-          }
-        });
-
-        debugPrint('endVotingPhase: updating to reveal phase, eliminated: $eliminatedPlayerId, gameOver: $gameOver, wrongVotes: $wrongVotesCount');
-        
-        final updateData = {
-          'currentPhase': 'reveal',
-          'timeLeft': 30, // 30 seconds to show elimination
-          'players': updatedPlayers.map((p) => p.toJson()).toList(),
-          'lastEliminatedPlayer': eliminatedPlayerId,
-          'isGameOver': gameOver,
-          'winner': winner,
-          'wrongVotesThisRound': wrongVotesCount,
-        };
-        
-        debugPrint('endVotingPhase: update data: $updateData');
-        await _database.child('rooms').child(currentRoom!.id).update(updateData);
-
-        if (gameOver) {
-          // Update stats for all players
-          for (final player in updatedPlayers) {
-            // Skip host
-            if (player.role == 'مضيف') continue;
-
-            bool didWin = false;
-            if (winner == 'مدنيين' && player.role == 'مدني') {
-              didWin = true;
-            } else if (winner == 'مافيوسو' && player.role == 'مافيوسو') {
-              didWin = true;
-            }
-            
-            // It's important to use the player's actual ID from your authentication system
-            // if it's stored in the player object. Here, we assume player.id is the correct user ID.
-            await settingsCubit.incrementGameStats(userId: player.id, didWin: didWin);
-          }
-
-          // حذف الغرفة بعد 10 ثوانٍ من انتهاء اللعبة
-          Future.delayed(const Duration(seconds: 10), () async {
-            await _database.child('rooms').child(currentRoom!.id).remove();
-            // حذف معلومات اللاعب المحفوظة عند انتهاء اللعبة
-            await clearSavedPlayer();
-          });
-        }
-      } else {
-        // إذا لم يكن هناك لاعبين للتصويت عليهم، انتقل للجولة التالية
-        debugPrint('endVotingPhase: no players to eliminate, moving to next round');
-        await startNextRound();
-      }
     } catch (e) {
-      debugPrint('endVotingPhase error: $e');
-      emit(GameError('حدث خطأ أثناء حساب الأصوات: $e'));
-      
-      // Fallback: force move to next round if there's an error
-      try {
-        debugPrint('endVotingPhase: fallback - moving to next round due to error');
-        await startNextRound();
-      } catch (fallbackError) {
-        debugPrint('endVotingPhase: fallback also failed: $fallbackError');
-      }
+      emit(GameError('حدث خطأ في نهاية مرحلة التصويت: $e'));
     }
   }
 
-  // إعادة التصويت بعد الدفاع
+  Future<bool> _checkWinConditions(List<Player> livingPlayers, String lastMessage) async {
+    final mafiosoCount = livingPlayers.where((p) => p.role == 'مافيوسو').length;
+    final civilianCount = livingPlayers.length - mafiosoCount;
+
+    String? winner;
+    String message;
+
+    if (mafiosoCount == 0) {
+      winner = 'المدنيون';
+      message = '$lastMessage\n\nانتهت اللعبة! لقد نجح المدنيون في القضاء على كل المافيا.';
+    } else if (mafiosoCount >= civilianCount) {
+      winner = 'المافيا';
+      message = '$lastMessage\n\nانتهت اللعبة! لقد سيطرت المافيا على المدينة.';
+    } else {
+      return false; // No winner yet
+    }
+
+    await _cleanupAndResetRoom(winner, message);
+    return true;
+  }
+
   Future<void> endDefensePhase() async {
     if (currentRoom == null) return;
+    _gameTimer?.cancel();
+    
+    // Reset votes one last time for the final vote
+    final playersWithResetVotes = currentRoom!.players.map((p) {
+      return p.copyWith(votes: 0, hasVoted: false);
+    }).toList();
+
+    await _database.child('rooms').child(currentRoom!.id).update({
+      'currentPhase': 'final_voting', // New phase for final vote
+      'timeLeft': 60, // 60 seconds for the final vote
+      'players': playersWithResetVotes.map((p) => p.toJson()).toList(),
+      'phaseMessage': 'وقت التصويت الأخير! كل اللاعبين (بما فيهم من خرجوا) يصوتون الآن لتحديد الفائز.',
+    });
+    _startGameTimer();
+  }
+
+  Future<void> endFinalVotingPhase() async {
+    if (currentRoom == null) return;
+    _gameTimer?.cancel();
+
     try {
-      await _database.child('rooms').child(currentRoom!.id).update({
-        'currentPhase': 'voting',
-        'timeLeft': 60, // 1 دقيقة للتصويت بين المتعادلين
-        // votes will be reset by client logic
-      });
+      final roomSnapshot = await _database.child('rooms').child(currentRoom!.id).get();
+      if (!roomSnapshot.exists) return;
+      final latestRoom = GameRoom.fromJson(Map<String, dynamic>.from(roomSnapshot.value as Map));
+
+      Player? playerToEliminate;
+      int maxVotes = -1;
+      
+      // Only the two defenders are eligible for elimination
+      List<Player> defenders = latestRoom.players.where((p) => p.isAlive && p.id != latestRoom.hostId).toList();
+      
+      if (defenders.length == 2) {
+        if (defenders[0].votes > defenders[1].votes) {
+          playerToEliminate = defenders[0];
+        } else if (defenders[1].votes > defenders[0].votes) {
+          playerToEliminate = defenders[1];
+        } else {
+          // Tie, Mafioso wins by default in a 1v1 showdown tie.
+          playerToEliminate = defenders.firstWhere((p) => p.role == 'مدني');
+        }
+      } else {
+         // Should not happen, but as a fallback, Mafia wins
+        await _checkWinConditions(defenders, "حدث خطأ غير متوقع في التصويت النهائي.");
+        return;
+      }
+      
+      final winnerPlayer = defenders.firstWhere((p) => p.id != playerToEliminate!.id);
+      final winner = winnerPlayer.role == 'مافيوسو' ? 'المافيا' : 'المدنيون';
+      final message = 'بعد المواجهة النهائية، تم إعدام ${playerToEliminate.characterName}. الفائز هو ${winnerPlayer.characterName}!';
+      
+      await _cleanupAndResetRoom(winner, message);
+
     } catch (e) {
-      emit(GameError('حدث خطأ أثناء إعادة التصويت'));
+      emit(GameError('حدث خطأ في نهاية التصويت النهائي: $e'));
+    }
+  }
+
+  Future<void> _cleanupAndResetRoom(String winner, String message) async {
+    if (currentRoom == null) return;
+    _gameTimer?.cancel();
+    final roomId = currentRoom!.id;
+
+    try {
+      // 1. Identify dummy players
+      List<String> dummyPlayerIds = [];
+      for (final player in currentRoom!.players) {
+        if (player.id.startsWith('dummy_')) {
+           dummyPlayerIds.add(player.id);
+        } else {
+          // Check the /users node for real players just in case
+          final userSnap = await _database.child('users').child(player.id).get();
+          if (userSnap.exists) {
+            final userData = Map<String, dynamic>.from(userSnap.value as Map);
+            if (userData['isDummy'] == true) {
+              dummyPlayerIds.add(player.id);
+            }
+          }
+        }
+      }
+
+      // 2. Delete dummy players from /users
+      if (dummyPlayerIds.isNotEmpty) {
+        print('Cleaning up ${dummyPlayerIds.length} dummy players...');
+        Map<String, dynamic> updates = {};
+        for (final id in dummyPlayerIds) {
+          updates['/users/$id'] = null; // This is how you delete a node
+        }
+        await _database.update(updates);
+        print('Cleanup complete.');
+      }
+      
+      // 3. Update the room to ended state
+      await _database.child('rooms').child(roomId).update({
+        'status': 'ended',
+        'currentPhase': 'ended',
+        'isGameOver': true,
+        'winner': winner,
+        'phaseMessage': message,
+        'players': currentRoom!.players.where((p) => !dummyPlayerIds.contains(p.id)).map((p) => p.toJson()).toList(),
+      });
+
+      // 4. After a delay, delete the entire room.
+      // This will trigger the listener on all clients to clean up their state.
+      Future.delayed(const Duration(seconds: 30), () {
+        _database.child('rooms').child(roomId).remove();
+      });
+
+    } catch(e) {
+      print("Error during cleanup: $e");
+      // Fallback to just ending the game
+      await _database.child('rooms').child(roomId).update({
+        'status': 'ended',
+        'currentPhase': 'ended',
+        'isGameOver': true,
+        'winner': winner,
+        'phaseMessage': message,
+      });
     }
   }
 
@@ -436,9 +551,9 @@ class GameCubit extends Cubit<GameState> {
         'currentPhase': 'discussion',
         'timeLeft': duration, // use chosen duration
         'currentRound': currentRoom!.currentRound + 1,
-        'votes': {},
         'lastEliminatedPlayer': null,
         'currentClueIndex': nextClueIndex,
+        'isFinalShowdown': false, // إعادة تعيين حالة المواجهة النهائية
       });
     } catch (e) {
       emit(GameError('حدث خطأ أثناء بدء الجولة التالية'));
@@ -447,27 +562,45 @@ class GameCubit extends Cubit<GameState> {
 
   Future<void> addDummyPlayers(int count) async {
     if (currentRoom == null) return;
+    for (int i = 0; i < count; i++) {
+      try {
+        String randomId = _database.push().key!;
+        String dummyEmail = 'dummy_$randomId@mafioso.game';
+        String dummyPassword = 'password'; // Simple password for dummy accounts
 
-    try {
-      List<Player> newPlayers = List.from(currentRoom!.players);
-      for (int i = 0; i < count; i++) {
-        String playerId = '${DateTime.now().millisecondsSinceEpoch}-$i';
-        Player dummyPlayer = Player(
-          id: playerId,
-          name: 'لاعب وهمي ${i + 1}',
-          role: 'مدني',
+        // We don't need to create an auth user for dummies if they don't need to sign in.
+        // We can just add them to the /users node and the room.
+        
+        final dummyUserId = 'dummy_$randomId';
+        final dummyPlayer = Player(
+          id: dummyUserId,
+          name: 'لاعب وهمي ${randomId.substring(0, 4)}',
           avatar: _getRandomAvatar(),
+          isAlive: true,
+          role: 'TBD',
+          hasVoted: false,
+          votes: 0,
         );
-        newPlayers.add(dummyPlayer);
-      }
 
-      await _database
-          .child('rooms')
-          .child(currentRoom!.id)
-          .child('players')
-          .set(newPlayers.map((p) => p.toJson()).toList());
-    } catch (e) {
-      emit(GameError('حدث خطأ أثناء إضافة لاعبين وهميين'));
+        // Add to /users node with the isDummy flag
+        await _database.child('users').child(dummyUserId).set({
+          'uid': dummyUserId,
+          'name': dummyPlayer.name,
+          'email': dummyEmail,
+          'avatar': dummyPlayer.avatar,
+          'isDummy': true, // The important flag!
+        });
+
+        // Add to the room
+        final updatedPlayers = List<Player>.from(currentRoom!.players)..add(dummyPlayer);
+        await _database.child('rooms').child(currentRoom!.id).update({
+          'players': updatedPlayers.map((p) => p.toJson()).toList(),
+        });
+
+      } catch (e) {
+        print("Error adding dummy player: $e");
+        // Handle error, maybe show a message to the user
+      }
     }
   }
 
@@ -476,7 +609,8 @@ class GameCubit extends Cubit<GameState> {
     _roomSubscription = _database.child('rooms').child(roomId)
         .onValue.listen((event) async {
       if (!event.snapshot.exists) {
-        // If the room is deleted, go back to the initial state.
+        // If the room is deleted, clean up the user's state and go back to the initial state.
+        await GameCubit.clearSavedPlayer();
         currentRoom = null;
         currentPlayer = null;
         _roomSubscription?.cancel();
@@ -530,119 +664,57 @@ class GameCubit extends Cubit<GameState> {
   void _startGameTimer() {
     _gameTimer?.cancel();
     _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      // فقط المضيف يشغل التايمر
       if (currentRoom == null || currentPlayer?.id != currentRoom?.hostId) {
-        debugPrint('_startGameTimer: not host, canceling timer');
-        timer.cancel();
+        // Only the host updates the timer to prevent race conditions.
+        // Other clients will simply listen for updates from Firebase.
         return;
       }
 
       try {
-        // احصل على آخر نسخة من الغرفة من Firebase
-        final snapshot = await _database.child('rooms').child(currentRoom!.id).get();
-        if (!snapshot.exists) {
-          debugPrint('_startGameTimer: room no longer exists, canceling timer');
+        // It's crucial for the host to work with the latest room data.
+        final roomSnapshot = await _database.child('rooms').child(currentRoom!.id).get();
+        if (!roomSnapshot.exists) {
           timer.cancel();
           return;
         }
-        currentRoom = GameRoom.fromJson(Map<String, dynamic>.from(snapshot.value as Map));
+        
+        final latestRoom = GameRoom.fromJson(Map<String, dynamic>.from(roomSnapshot.value as Map));
+        final timeLeft = latestRoom.timeLeft;
+        final currentPhase = latestRoom.currentPhase;
 
-        debugPrint('_startGameTimer: current phase: ${currentRoom!.currentPhase}, timeLeft: ${currentRoom!.timeLeft}');
-
-        if (currentRoom!.timeLeft > 0) {
-          await _database.child('rooms').child(currentRoom!.id).update({
-            'timeLeft': currentRoom!.timeLeft - 1,
-          });
+        if (timeLeft > 0) {
+          // If time is left, the host decrements it in Firebase.
+          await _database.child('rooms').child(currentRoom!.id).update({'timeLeft': timeLeft - 1});
         } else {
+          // If time is up, the host cancels the timer and triggers the next phase.
           timer.cancel();
-          debugPrint('Timer finished. Current phase: ${currentRoom!.currentPhase}');
-          // Auto-advance phase based on current phase
-          if (currentRoom!.isDiscussionPhase) {
-            debugPrint('Calling endDiscussionPhase');
-            await endDiscussionPhase();
-          } else if (currentRoom!.isVotingPhase) {
-            debugPrint('Calling endVotingPhase');
-            await endVotingPhase();
-          } else if (currentRoom!.isDefensePhase) {
-            debugPrint('Calling endDefensePhase');
-            await endDefensePhase();
-          } else if (currentRoom!.isRevealPhase && !currentRoom!.isGameOver) {
-            debugPrint('Calling startNextRound');
-            await startNextRound();
+          switch (currentPhase) {
+            case 'discussion':
+              await endDiscussionPhase();
+              break;
+            case 'voting':
+              await endVotingPhase();
+              break;
+            case 'reveal':
+              await endRevealPhase();
+              break;
+            case 'defense':
+              await endDefensePhase();
+              break;
+            case 'final_voting':
+              await endFinalVotingPhase();
+              break;
           }
         }
       } catch (e) {
-        debugPrint('_startGameTimer error: $e');
-        // Don't cancel timer on error, just log it
+        print("Error in _startGameTimer: $e");
+        // We don't cancel the timer on error, to allow it to recover on the next tick.
       }
     });
   }
 
-  List<Player> _assignCharacterInfo(List<Player> players) {
-    final List<Map<String, String>> characters = [
-      {
-        'name': 'الطبيب',
-        'description': 'طبيب محلي معروف بسمعته الطيبة',
-        'relationship': 'كان يعالج الضحية',
-        'alibi': 'كان في المستشفى وقت الجريمة',
-      },
-      {
-        'name': 'الخادمة',
-        'description': 'خادمة تعمل في المكان منذ سنوات',
-        'relationship': 'تعرف الضحية جيداً',
-        'alibi': 'كانت تنظف الطابق العلوي',
-      },
-      {
-        'name': 'الشرطي',
-        'description': 'ضابط شرطة محلي',
-        'relationship': 'كان يحقق في قضايا سابقة للضحية',
-        'alibi': 'كان في مركز الشرطة',
-      },
-      {
-        'name': 'الطاهي',
-        'description': 'طاهي مشهور في المنطقة',
-        'relationship': 'كان يعد الطعام للضحية',
-        'alibi': 'كان في المطبخ يعد العشاء',
-      },
-      {
-        'name': 'السائق',
-        'description': 'سائق خاص للضحية',
-        'relationship': 'يعمل مع الضحية منذ سنوات',
-        'alibi': 'كان يغسل السيارة في المرآب',
-      },
-      {
-        'name': 'المحامي',
-        'description': 'محامي معروف في المدينة',
-        'relationship': 'كان يمثل الضحية في قضايا قانونية',
-        'alibi': 'كان في مكتبه يعد أوراق قضية',
-      },
-      {
-        'name': 'البستاني',
-        'description': 'بستاني يعمل في المكان',
-        'relationship': 'يعرف الضحية من خلال عمله',
-        'alibi': 'كان يزرع الزهور في الحديقة',
-      },
-      {
-        'name': 'الكاتب',
-        'description': 'كاتب وصحفي محلي',
-        'relationship': 'كان يكتب مقالاً عن الضحية',
-        'alibi': 'كان في مكتب الصحيفة',
-      },
-    ];
-
-    // Shuffle characters and assign to players
-    characters.shuffle();
-    for (int i = 0; i < players.length && i < characters.length; i++) {
-      final character = characters[i];
-      players[i] = players[i].copyWith(
-        characterName: character['name']!,
-        characterDescription: character['description']!,
-        relationshipToVictim: character['relationship']!,
-        alibi: character['alibi']!,
-      );
-    }
-
-    return players;
+  void stopGameTimer() {
+    _gameTimer?.cancel();
   }
 
   String _generateRoomId() {
@@ -821,5 +893,60 @@ class GameCubit extends Cubit<GameState> {
     } catch (e) {
       emit(GameError('حدث خطأ أثناء الخروج من الغرفة'));
     }
+  }
+
+  Future<void> removePlayer(String playerId) async {
+    if (currentRoom == null) return;
+    // ... existing code ...
+  }
+
+  Future<void> endRevealPhase() async {
+    if (currentRoom == null) return;
+    _gameTimer?.cancel();
+    
+    // Fetch the latest room state
+    final roomSnapshot = await _database.child('rooms').child(currentRoom!.id).get();
+    if (!roomSnapshot.exists) return;
+    final latestRoom = GameRoom.fromJson(Map<String, dynamic>.from(roomSnapshot.value as Map));
+    
+    final livingPlayers = latestRoom.players.where((p) => p.isAlive && p.id != latestRoom.hostId).toList();
+
+    // Special Case: Final Showdown (2 players left, 1 mafioso, 1 civilian)
+    if (livingPlayers.length == 2) {
+      final mafiosoCount = livingPlayers.where((p) => p.role == 'مافيوسو').length;
+      if (mafiosoCount == 1) {
+        await _database.child('rooms').child(currentRoom!.id).update({
+          'currentPhase': 'defense',
+          'timeLeft': 60, // 60 seconds for defense phase
+          'phaseMessage': 'المواجهة الأخيرة! كل لاعب لديه دقيقة للدفاع عن نفسه قبل التصويت النهائي من الجميع.',
+          'lastEliminatedPlayerId': null, // Clear the eliminated player
+        });
+        _startGameTimer();
+        return;
+      }
+    }
+
+    // New Win Condition: Clues have run out
+    if (latestRoom.currentRound >= latestRoom.clues.length) {
+      await _cleanupAndResetRoom('المافيا', 'نفدت الأدلة! لقد تمكنت المافيا من الإفلات بجرائمهم وفازوا باللعبة.');
+      return;
+    }
+
+    // Move to the next discussion round
+    final playersWithResetVotes = latestRoom.players.map((p) {
+      return p.copyWith(votes: 0, hasVoted: false);
+    }).toList();
+
+    await _database.child('rooms').child(currentRoom!.id).update({
+      'currentPhase': 'discussion',
+      'timeLeft': latestRoom.discussionDuration,
+      'players': playersWithResetVotes.map((p) => p.toJson()).toList(),
+      'phaseMessage': 'بدأت جولة جديدة من النقاش.',
+      'lastEliminatedPlayerId': null, // Clear the eliminated player
+      'currentRound': latestRoom.currentRound + 1,
+      'currentClueIndex': latestRoom.currentRound, // Reveal next clue
+    });
+
+    _startGameTimer();
   }
 }
