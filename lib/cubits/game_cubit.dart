@@ -500,9 +500,17 @@ class GameCubit extends Cubit<GameState> {
         }
       }
 
+      // تحديث إحصائيات كل لاعب حقيقي
+      for (final player in currentRoom!.players) {
+        if (!dummyPlayerIds.contains(player.id)) {
+          final didWin = (winner == 'المافيا' && player.role == 'مافيوسو') || (winner == 'المدنيون' && player.role == 'مدني');
+          await settingsCubit.incrementGameStats(userId: player.id, didWin: didWin);
+        }
+      }
+
       // 2. Delete dummy players from /users
       if (dummyPlayerIds.isNotEmpty) {
-        print('Cleaning up ${dummyPlayerIds.length} dummy players...');
+        print('Cleaning up ${dummyPlayerIds.length} dummy players...');
         Map<String, dynamic> updates = {};
         for (final id in dummyPlayerIds) {
           updates['/users/$id'] = null; // This is how you delete a node
@@ -543,6 +551,11 @@ class GameCubit extends Cubit<GameState> {
   Future<void> startNextRound() async {
     if (currentRoom == null) return;
     try {
+      // تحقق أولاً: إذا انتهت الدلائل، فوز المافيا
+      if (currentRoom!.currentRound >= currentRoom!.clues.length) {
+        await _cleanupAndResetRoom('المافيا', 'نفدت الأدلة! لقد تمكنت المافيا من الإفلات بجرائمهم وفازوا باللعبة.');
+        return;
+      }
       final int duration = currentRoom?.discussionDuration ?? 300;
       int nextClueIndex = (currentRoom!.currentClueIndex + 1);
       if (nextClueIndex >= currentRoom!.clues.length) nextClueIndex = currentRoom!.clues.length - 1;

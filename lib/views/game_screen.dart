@@ -166,6 +166,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     Icon(Icons.error_outline, size: 60, color: Colors.red[400]),
                     const SizedBox(height: 20),
                     const Text('لا توجد لعبة محملة', style: TextStyle(fontSize: 20)),
+                    ElevatedButton(onPressed: (){
+                       Navigator.pushReplacement(context, MaterialPageRoute(builder:
+                       (context)=>MainMenuScreen()
+                       )
+                       );
+                    }, child: Text("الرجوع للصفحة الرئيسيه"))
                   ],
                 ),
               ),
@@ -1177,6 +1183,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                           itemBuilder: (context, index) {
                             final msg = messages[index];
                             final isMe = msg['senderId'] == currentPlayer.id;
+                            Color moodColor;
+                            IconData moodIcon;
+
                             return AnimatedOpacity(
                               opacity: 1.0,
                               duration: const Duration(milliseconds: 400),
@@ -1205,25 +1214,31 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                            margin: const EdgeInsets.only(top: 2),
-                                            decoration: BoxDecoration(
-                                              color: isMe ? Colors.blue[400] : Colors.grey[300],
-                                              borderRadius: BorderRadius.only(
-                                                topLeft: const Radius.circular(18),
-                                                topRight: const Radius.circular(18),
-                                                bottomLeft: Radius.circular(isMe ? 18 : 4),
-                                                bottomRight: Radius.circular(isMe ? 4 : 18),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                                margin: const EdgeInsets.only(top: 2),
+                                                decoration: BoxDecoration(
+                                                  color: isMe ? Colors.blue[400] : Colors.grey[300],
+                                                  borderRadius: BorderRadius.only(
+                                                    topLeft: const Radius.circular(18),
+                                                    topRight: const Radius.circular(18),
+                                                    bottomLeft: Radius.circular(isMe ? 18 : 4),
+                                                    bottomRight: Radius.circular(isMe ? 4 : 18),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  msg['text'] ?? '',
+                                                  style: TextStyle(
+                                                    color: isMe ? Colors.white : Colors.black87,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
                                               ),
-                                            ),
-                                            child: Text(
-                                              msg['text'] ?? '',
-                                              style: TextStyle(
-                                                color: isMe ? Colors.white : Colors.black87,
-                                                fontSize: 16,
-                                              ),
-                                            ),
+                                              const SizedBox(width: 4),
+                                            ],
                                           ),
                                           Text(
                                             _formatTime(DateTime.tryParse(msg['timestamp'] ?? '') ?? DateTime.now()),

@@ -10,6 +10,7 @@ import 'main_menu.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../cubits/auth_cubit.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class LobbyScreen extends StatefulWidget {
   const LobbyScreen({super.key});
@@ -143,6 +144,11 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
     return BlocConsumer<GameCubit, GameState>(
       listener: _handleStateChanges,
       builder: (context, state) {
+        if (_loadingCases) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.amber),
+          );
+        }
         if (state is GameRoomLoaded) {
           return _buildLobbyContent(context, state);
         }
@@ -174,6 +180,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
   Widget _buildLobbyContent(BuildContext context, GameRoomLoaded state) {
     final room = state.room;
     final currentPlayer = state.currentPlayer;
+    final isHost = currentPlayer != null && room.hostId == currentPlayer.id;
     if (currentPlayer == null) {
       // اللاعب لم يدخل اسمه بعد أو لم يتم تعيينه بعد
       return Scaffold(
@@ -207,20 +214,14 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
               ],
             ),
           ),
-          child: const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
+          child: const Center(child: CircularProgressIndicator()),
         ),
       );
     }
-    final isHost = currentPlayer.id == room.hostId;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('اللوبي' , style: TextStyle(fontWeight: FontWeight.bold),),
+        title: const Text('اللوبي', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -233,6 +234,31 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
             ),
           ),
         ),
+        actions: [
+          if (_settingsConfirmed && isHost)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.cancel, color: Colors.white),
+                label: const Text('إلغاء الغرفة', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+                onPressed: () async {
+                  await FirebaseDatabase.instance.ref().child('rooms').child(room.id).remove();
+                  if (mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const MainMenuScreen()),
+                      (route) => false,
+                    );
+                  }
+                },
+              ),
+            ),
+        ],
       ),
       body: Container(
         width: double.infinity,
@@ -257,9 +283,33 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                 if (_settingsConfirmed) _buildRoomInfoSection(room, isHost),
                 if (!isHost || _settingsConfirmed) _buildPlayersList(room),
                 if (isHost && _settingsConfirmed && room.players.length < 8)
-                  _buildAddDummyPlayerButton(),
+                   _buildAddDummyPlayerButton(),
                 if (_settingsConfirmed && isHost && room.players.length >= 2)
                   _buildStartGameButton(room),
+                if (_settingsConfirmed && isHost)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 24.h),
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.cancel, color: Colors.white),
+                      label: const Text('إلغاء الغرفة', style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 16.h),
+                        textStyle: TextStyle(fontSize: 20.sp, fontWeight: FontWeight.bold),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      onPressed: () async {
+                        await FirebaseDatabase.instance.ref().child('rooms').child(room.id).remove();
+                        if (mounted) {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const MainMenuScreen()),
+                            (route) => false,
+                          );
+                        }
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
@@ -273,15 +323,38 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
       children: [
         _buildCaseSelectionButton(),
         _buildDurationSelectionRow(),
-        const SizedBox(height: 20),
-        _buildConfirmSettingsButton(room),
+        SizedBox(height: 20.h),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () async {
+                // حذف الغرفة من Firebase
+                await FirebaseDatabase.instance.ref().child('rooms').child(room.id).remove();
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const MainMenuScreen()),
+                    (route) => false,
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('إلغاء'),
+            ),
+            SizedBox(width: 16.w),
+            _buildConfirmSettingsButton(room),
+          ],
+        ),
       ],
     );
   }
 
   Widget _buildCaseSelectionButton() {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      margin: EdgeInsets.symmetric(vertical: 16.h, horizontal: 20.w),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -313,12 +386,12 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
           borderRadius: BorderRadius.circular(20),
           onTap: _cases.isEmpty ? null : () => _showCasePickerDialog(context),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+            padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 24.w),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
@@ -329,7 +402,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                     size: 28,
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: 16.w),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,7 +416,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                           fontFamily: 'Cairo',
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4.h),
                       Text(
                         _cases.isEmpty
                             ? 'يرجى الانتظار...'
@@ -362,7 +435,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                 ),
                 if (!_cases.isEmpty)
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
@@ -385,8 +458,8 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
 
   Widget _buildDurationSelectionRow() {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.symmetric(vertical: 16.h, horizontal: 20.w),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -420,11 +493,11 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                 color: Colors.amber[300],
                 size: 24,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8.w),
               Text(
                 'مدة النقاش',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 18.sp,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   fontFamily: 'Cairo',
@@ -432,7 +505,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -499,7 +572,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
           borderRadius: BorderRadius.circular(16),
           onTap: () => onSelected(true),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
             decoration: BoxDecoration(
               color: isSelected
                   ? Colors.transparent
@@ -520,13 +593,13 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                   color: isSelected ? Colors.white : Colors.amber[300],
                   size: 20,
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4.h),
                 Text(
                   label,
                   style: TextStyle(
                     color: isSelected ? Colors.white : Colors.white70,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 12.sp,
                     fontFamily: 'Cairo',
                   ),
                 ),
@@ -546,14 +619,14 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
 
   Widget _buildConfirmSettingsButton(GameRoom room) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: EdgeInsets.symmetric(horizontal: 32.w),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          textStyle: const TextStyle(
-              fontSize: 20,
+          padding: EdgeInsets.symmetric(vertical: 16.h),
+          textStyle: TextStyle(
+              fontSize: 20.sp,
               fontWeight: FontWeight.bold,
               fontFamily: 'Cairo'),
         ),
@@ -588,23 +661,25 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
       children: [
         Card(
           color: Colors.deepPurple.withOpacity(0.9),
-          margin: const EdgeInsets.all(24),
+          margin: EdgeInsets.all(24.h),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(24),
             child: Column(
               children: [
-                const Text('رمز الغرفة',
-                    style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontFamily: 'Cairo')),
+                Text(
+                  'رمز الغرفة',
+                  style: TextStyle(
+                      fontSize: 18.sp,
+                      color: Colors.white,
+                      fontFamily: 'Cairo'),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       room.id,
-                      style: const TextStyle(
-                          fontSize: 36,
+                      style: TextStyle(
+                          fontSize: 36.sp,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           fontFamily: 'Cairo'),
@@ -616,19 +691,21 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                   ],
                 ),
                 if (isHost) ...[
-                  const SizedBox(height: 16),
-                  const Text('الرقم السري للغرفة (PIN) - أعطه لمن يريد الدخول:',
-                      style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white,
-                          fontFamily: 'Cairo')),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'الرقم السري للغرفة (PIN) - أعطه لمن يريد الدخول:',
+                    style: TextStyle(
+                        fontSize: 16.sp,
+                        color: Colors.white,
+                        fontFamily: 'Cairo'),
+                  ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         room.pin,
-                        style: const TextStyle(
-                            fontSize: 28,
+                        style: TextStyle(
+                            fontSize: 28.sp,
                             fontWeight: FontWeight.bold,
                             color: Colors.amber,
                             fontFamily: 'Cairo'),
@@ -644,29 +721,29 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20.h),
       ],
     );
   }
 
   Widget _buildPlayersList(GameRoom room) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'اللاعبون',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.white),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 380, // Max width for each item
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 380.w, // Max width for each item
+              mainAxisSpacing: 10.h,
+              crossAxisSpacing: 10.h,
               childAspectRatio: 4.8, // Adjust this ratio as needed
             ),
             itemCount: room.players.length,
@@ -685,12 +762,12 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                       backgroundColor: isHost ? Colors.amber[300] : Colors.deepPurple[300],
                       child: Text(
                         player.avatar.isNotEmpty ? player.avatar : '?',
-                        style: const TextStyle(fontSize: 24, color: Colors.white),
+                        style: TextStyle(fontSize: 24.sp, color: Colors.white),
                       ),
                     ),
                     title: Text(
                       player.name,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                     trailing: isHost
                         ? const Icon(Icons.admin_panel_settings, color: Colors.amber)
@@ -700,7 +777,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
               ).animate(delay: (100 * index).ms).fadeIn(duration: 500.ms).slideX(begin: -0.2);
             },
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
         ],
       ),
     );
@@ -708,12 +785,12 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
 
   Widget _buildAddDummyPlayerButton() {
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: 8.h),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -728,16 +805,16 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
 
   Widget _buildStartGameButton(GameRoom room) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(16.w),
       child: ElevatedButton.icon(
         icon: const Icon(Icons.play_arrow_rounded),
         label: const Text('ابدأ اللعبة'),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green[600],
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: EdgeInsets.symmetric(vertical: 16.h),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          textStyle: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold),
         ),
         onPressed: () {
           if (_cases.isNotEmpty) {
@@ -775,7 +852,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
           child: Center(
             child: Text(
               state.message,
-              style: const TextStyle(color: Colors.white, fontSize: 18),
+              style: TextStyle(color: Colors.white, fontSize: 18.sp),
             ),
           ),
         ),
@@ -835,23 +912,23 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
               borderRadius: BorderRadius.circular(20),
               side: BorderSide(color: Colors.deepPurple[300]!, width: 2),
             ),
-            title: const Text(
+            title: Text(
               'تأكيد الانضمام',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'سيتم الانضمام للغرفة باسم:',
                   style: TextStyle(color: Colors.white70),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 Text(
                   playerName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.amber,
-                    fontSize: 18,
+                    fontSize: 18.sp,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -862,7 +939,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                 onPressed: () {
                   Navigator.pop(context);
                 },
-                child: const Text(
+                child: Text(
                   'إلغاء',
                   style: TextStyle(color: Colors.white70),
                 ),
@@ -872,7 +949,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
                   _registerPlayer(room, playerName);
                   Navigator.pop(context);
                 },
-                child: const Text(
+                child: Text(
                   'انضمام',
                   style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
                 ),
@@ -929,7 +1006,7 @@ class _LobbyScreenState extends State<LobbyScreen> with SingleTickerProviderStat
             borderRadius: BorderRadius.circular(20),
             side: BorderSide(color: Colors.deepPurple[300]!, width: 2),
           ),
-          title: const Text(
+          title: Text(
             'اختر قضية',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),

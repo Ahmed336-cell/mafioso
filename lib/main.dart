@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'cubits/auth_cubit.dart';
 import 'cubits/auth_state.dart';
 import 'cubits/game_cubit.dart';
@@ -13,7 +14,14 @@ import 'views/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(MafiosoApp());
+  runApp(
+    ScreenUtilInit(
+      designSize: const Size(375, 812), // مقاس التصميم الأصلي (مثال: آيفون X)
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) => MafiosoApp(),
+    ),
+  );
 }
 
 class MafiosoApp extends StatelessWidget {

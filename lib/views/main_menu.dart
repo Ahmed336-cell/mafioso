@@ -10,6 +10,7 @@ import 'lobby.dart';
 import 'game_screen.dart';
 import 'settings_screen.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class MainMenuScreen extends StatefulWidget {
   const MainMenuScreen({super.key});
@@ -173,16 +174,16 @@ class _MainMenuState extends State<MainMenuScreen> {
         int delay = 0,
       }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: 8.h),
       child: ElevatedButton.icon(
-        icon: Icon(icon, size: 28),
-        label: Text(text, style: const TextStyle(fontSize: 20)),
+        icon: Icon(icon, size: 28.sp),
+        label: Text(text, style: TextStyle(fontSize: 20.sp)),
         style: ElevatedButton.styleFrom(
           foregroundColor: Colors.white,
           backgroundColor: color.withOpacity(0.8),
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+          padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 15.h),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(30.r),
           ),
           elevation: 8,
           shadowColor: Colors.black.withOpacity(0.3),
@@ -196,14 +197,8 @@ class _MainMenuState extends State<MainMenuScreen> {
   }
 
   void _showCreateRoomDialog(BuildContext context) {
-    // Get the current user's name for room name
-    final authState = context.read<AuthCubit>().state;
-    String roomName = 'غرفة جديدة';
-    
-    if (authState is AuthSuccess) {
-      final userName = authState.user.displayName ?? authState.user.email?.split('@')[0] ?? 'لاعب';
-      roomName = 'غرفة $userName';
-    }
+    final TextEditingController caseTitleController = TextEditingController();
+    final TextEditingController durationController = TextEditingController();
 
     showDialog(
       context: context,
@@ -220,19 +215,16 @@ class _MainMenuState extends State<MainMenuScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'سيتم إنشاء غرفة باسم:',
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              roomName,
-              style: const TextStyle(
-                color: Colors.amber,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            TextField(
+              controller: caseTitleController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'عنوان الغرفة',
+                labelStyle: TextStyle(color: Colors.white70),
               ),
             ),
+            const SizedBox(height: 16),
+
           ],
         ),
         actions: [
@@ -245,14 +237,25 @@ class _MainMenuState extends State<MainMenuScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
-              context.read<GameCubit>().createRoom(roomName);
+              if (caseTitleController.text.isNotEmpty) {
+                Navigator.pop(context);
+                // استخدم اسم القضية ومدة الجولة لإنشاء الغرفة
+                context.read<GameCubit>().createRoom(
+                  caseTitleController.text,
+                  pin: null, // يمكنك إضافة المزيد من البيانات إذا لزم الأمر
+                );
+              } else {
+                // أظهر رسالة خطأ للمستخدم إذا لم يتم إدخال كل البيانات
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('يرجى إدخال جميع البيانات')),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
             ),
-            child: const Text('إنشاء'),
+            child: const Text('تأكيد'),
           ),
         ],
       ),
