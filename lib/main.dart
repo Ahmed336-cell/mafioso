@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'bloc_observer.dart';
 import 'cubits/auth_cubit.dart';
 import 'cubits/auth_state.dart';
 import 'cubits/game_cubit.dart';
@@ -14,6 +15,7 @@ import 'views/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  Bloc.observer = Observe(); // Set the custom BlocObserver
   runApp(
     ScreenUtilInit(
       designSize: const Size(375, 812), // مقاس التصميم الأصلي (مثال: آيفون X)
@@ -64,9 +66,7 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) {
-        if (state is AuthInitial || state is AuthLoading) {
-          return const SplashScreen();
-        }
+
         if (state is AuthSuccess) {
           return const MainMenuScreen();
         }
