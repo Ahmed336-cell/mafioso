@@ -173,6 +173,7 @@ class GameRoom {
   bool get isRevealPhase => currentPhase == 'reveal';
 
   GameRoom copyWith({
+    List<Player>? players,
     String? status,
     String? currentPhase,
     int? timeLeft,
@@ -198,7 +199,7 @@ class GameRoom {
     return GameRoom(
       id: id,
       hostId: hostId,
-      players: players,
+      players: players ?? this.players,
       status: status ?? this.status,
       currentPhase: currentPhase ?? this.currentPhase,
       timeLeft: timeLeft ?? this.timeLeft,

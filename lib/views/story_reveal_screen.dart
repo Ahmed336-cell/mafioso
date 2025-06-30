@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../models/game_room.dart';
 import '../models/player.dart';
 import 'main_menu.dart';
+import '../cubits/game_cubit.dart';
 
 class StoryRevealScreen extends StatefulWidget {
   final GameRoom room;
@@ -93,6 +94,17 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
     _imageController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  Player get _mafiosoPlayer {
+    // Try to get mafioso from current room, else from snapshot
+    final players = widget.room.players.isNotEmpty
+        ? widget.room.players
+        : (GameCubit.getLastRoomSnapshot()?.players ?? []);
+    return players.firstWhere(
+      (p) => p.role == 'مافيوسو',
+      orElse: () => Player(id: '', name: 'غير معروف', role: 'مافيوسو', avatar: '🎭'),
+    );
   }
 
   @override
@@ -203,17 +215,22 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
           if (_showConfession) _buildConfession(),
           const SizedBox(height: 32),
           _buildGameStats(),
+          const SizedBox(height: 32),
+          _buildFinalRolesList(),
         ],
       ),
     );
   }
-
   Widget _buildWinnerCard() {
     bool isCivilianWin = widget.room.winner == 'مدنيين';
+    final mafioso = _mafiosoPlayer;
+    String mafiosoName = mafioso.characterName.isNotEmpty
+        ? mafioso.characterName
+        : mafioso.name;
     String title = isCivilianWin ? 'المدنيون انتصروا!' : 'المافيوسو انتصر!';
     String subtitle = isCivilianWin
         ? 'لقد نجحتم في كشف المافيوسو وتحقيق العدالة.'
-        : 'لقد نجح المافيوسو في تنفيذ مهمته وخداعكم.';
+        : 'لقد نجح المافيوسو $mafiosoName في تنفيذ مهمته وخداعكم.';
     IconData icon = isCivilianWin ? Icons.shield : Icons.gavel;
     Color color = isCivilianWin ? Colors.green : Colors.red;
 
@@ -263,6 +280,7 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
   }
 
   Widget _buildMafiosoReveal() {
+    final mafioso = _mafiosoPlayer;
     return ScaleTransition(
       scale: _imageController,
       child: Container(
@@ -277,7 +295,7 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.withOpacity(0.5), width: 2),
+          border: Border.all(color: Colors.red.withOpacity(0.7), width: 3),
         ),
         child: Column(
           children: [
@@ -288,7 +306,7 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
                 height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.red, width: 4),
+                  border: Border.all(color: Colors.red, width: 5),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.red.withOpacity(0.3),
@@ -317,15 +335,20 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              widget.mafiosoPlayer.characterName.isNotEmpty
-                  ? widget.mafiosoPlayer.characterName
-                  : widget.mafiosoPlayer.name,
+              mafioso.characterName.isNotEmpty ? mafioso.characterName : mafioso.name,
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.red,
               ),
             ),
+            if (mafioso.characterJob.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                mafioso.characterJob,
+                style: const TextStyle(fontSize: 18, color: Colors.white70, fontWeight: FontWeight.w500),
+              ),
+            ],
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -334,7 +357,7 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Text(
-                'المافيوسو الحقيقي',
+                'المافيوسو الحقيق',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -342,6 +365,14 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
                 ),
               ),
             ),
+            if (mafioso.characterDescription.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                mafioso.characterDescription,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, color: Colors.white70, fontStyle: FontStyle.italic),
+              ),
+            ],
           ],
         ),
       ),
@@ -442,6 +473,71 @@ class _StoryRevealScreenState extends State<StoryRevealScreen>
             fontSize: 14,
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildFinalRolesList() {
+    // Use local snapshot if players list is empty
+    final players = widget.room.players.isNotEmpty
+        ? widget.room.players
+        : (GameCubit.getLastRoomSnapshot()?.players ?? []);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'كشف الأدوار النهائية لجميع اللاعبين',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.amber,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...players.map((player) {
+          Color roleColor;
+          switch (player.role) {
+            case 'مافيوسو':
+              roleColor = Colors.red;
+              break;
+            case 'مدني':
+              roleColor = Colors.green;
+              break;
+            case 'محقق':
+              roleColor = Colors.blue;
+              break;
+            case 'مضيف':
+              roleColor = Colors.amber;
+              break;
+            default:
+              roleColor = Colors.deepPurple;
+          }
+          return Card(
+            color: Colors.white10,
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: roleColor.withOpacity(0.2),
+                child: Text(player.avatar, style: const TextStyle(fontSize: 24)),
+              ),
+              title: Text(
+                player.characterName.isNotEmpty ? player.characterName : player.name,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              subtitle: Text(
+                player.role,
+                style: TextStyle(
+                  color: roleColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              trailing: player.isAlive
+                  ? const Icon(Icons.favorite, color: Colors.green, size: 20)
+                  : const Icon(Icons.close, color: Colors.red, size: 20),
+            ),
+          );
+        }).toList(),
       ],
     );
   }

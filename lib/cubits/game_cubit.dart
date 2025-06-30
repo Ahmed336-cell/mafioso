@@ -22,6 +22,11 @@ class GameCubit extends Cubit<GameState> {
   Timer? _gameTimer;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // --- NEW: Local snapshot for story reveal ---
+  static GameRoom? lastRoomSnapshot;
+  static GameRoom? getLastRoomSnapshot() => lastRoomSnapshot;
+  static void clearLastRoomSnapshot() => lastRoomSnapshot = null;
+
   GameCubit({required this.settingsCubit}) : super(GameInitial());
 
   @override
@@ -528,6 +533,16 @@ class GameCubit extends Cubit<GameState> {
         'phaseMessage': message,
         'players': currentRoom!.players.where((p) => !dummyPlayerIds.contains(p.id)).map((p) => p.toJson()).toList(),
       });
+
+      // --- NEW: Save local snapshot before deletion ---
+      lastRoomSnapshot = currentRoom!.copyWith(
+        players: currentRoom!.players.where((p) => !dummyPlayerIds.contains(p.id)).toList(),
+        status: 'ended',
+        currentPhase: 'ended',
+        isGameOver: true,
+        winner: winner,
+        phaseMessage: message,
+      );
 
       // 4. After a delay, delete the entire room.
       // This will trigger the listener on all clients to clean up their state.
